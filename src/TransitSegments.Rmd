@@ -1,0 +1,177 @@
+---
+title: "Transit Segments"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'TransitSegments.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
+output: html_document
+---
+
+```{r setup, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE,
+	cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(geosphere)
+library(ggplot2)
+library(knitr)
+# library(tidyr)
+# library(mosaic)
+# library(RSQLite)
+# library(dbplyr)
+# library(foreach)
+# library(iterators)
+# library(RNetCDF)
+# library(abind)
+# library(data.table)
+# library(lme4)
+# library(tcltk)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS_TDR.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+```
+
+## Identify Transit Segments
+Transit segments are the basis of analysis for the flight cost model. 
+
+Here we define a transit segment as the following:
+
+* 30 minutes (i.e. 15 consecutive points)
+* No gaps longer than 150% of the scheduled sampling rate (i.e. 3 minutes)
+* Standard deviation of speed < 1.5m/s
+* At least 13 of the 15 points are classified as transit by the RST algorithm (Torres et al. 2017)
+* Net displacement of more than 10km
+
+Only single-day trips will be considered.
+
+```{r segments}
+# tracks: a data frame with the RFBO e-obs tracks from KPNWR
+tracks <- tidytracks_db %>%
+  # Join GPS type and subcolony code from metadata
+  left_join(select(metadata_db, DeployID, GPS_type, SubColCode),
+            by = 'DeployID') %>%
+  # Filter to RFO @ KPNWR w/ e-obs tags
+  filter(Species == 'RFBO',
+         GPS_type == 'e-obs',
+         SubColCode == 'KPC') %>%
+  collect(n = Inf) %>%
+  group_by(TripID) %>%
+  # Filter out multiday and excessively short (< 15 points) trips
+  filter((max(TimestampUTC) - min(TimestampUTC)) / 3600 < 24,
+         n() >= 15) %>%
+  ungroup %>%
+  # Mutate time from numeric to datetime and set DeployID/TripID to factors
+  mutate(TimestampUTC = as.POSIXct(TimestampUTC, origin = POSIX.origin, tz = 'UTC'),
+         DeployID = factor(DeployID),
+         TripID = factor(TripID))
+
+# The following variables are parameters and helper functions for summarizing segments
+# window: the number of consecutive points in a segment
+# leadWindow: window - 1, i.e. the number of points to lead by to reach the end
+# getLeg: a function for determining if a transit segment is inbound/outbound. All segments 
+#   before the farthest point from the colony are outbound, those after are inbound.
+# meanBear: calculates the mean bearing along the segment. Fits a linear regression to the 
+#   coordinates and gets the bearing from (first longitude, first fitted latitude) to
+#   (last longitude, last fitted latitude).
+window <- 15
+leadWindow <- window - 1
+getLeg <- function(t, tmax) {
+  if(t < tmax) 
+    'Outbound'
+  else
+    'Inbound'
+}
+meanBear <- function(lonlat) {
+  lon <- lonlat[,1]
+  lat <- lonlat[,2]
+  m <- lm(lat ~ lon)
+  pLat <- predict(m)
+  bearing(c(first(lon), first(pLat)), c(last(lon), last(pLat)))
+}
+rollapply2 <- function(...) {
+  rollapply(..., fill = NA, partial = FALSE, align = 'left')
+}
+
+# segments0: ALL 15-point segments within tracks
+segments0 <- tracks %>%
+  arrange(TripID, TimestampUTC) %>%
+  group_by(TripID) %>%
+  mutate(Start = TimestampUTC,
+         End = lead(TimestampUTC, leadWindow),
+         # Leg is a categorical variable specifying if the segment is outbound or inbound
+         maxD2Ctime = TimestampUTC[which.max(DistToCol)],
+         Leg = rollapply2(TimestampUTC, window, getLeg, maxD2Ctime),
+         # maxGap is the longest gap between rediscretized and original track points
+         maxGap = rollapply2(PositionLag, window, max),
+         # Mean and standard deviation of speed
+         meanSpd = rollapply2(Speed, window, mean),
+         sdSpd = rollapply2(Speed, window, sd),
+         # Mean tortuosity
+         meanTrt = rollapply2(Tortuosity, window, mean, na.rm = TRUE),
+         # Number of points classified as transit
+         nTransit = rollapply2(Behavior, window, function(b) sum(b == 'transit', na.rm = TRUE)),
+         # Net displacement
+         displacement = distGeo(cbind(Longitude, Latitude), cbind(lead(Longitude, leadWindow), lead(Latitude, leadWindow))),
+         # Net bearing
+         bearing = rollapply2(data.frame(Longitude, Latitude), window, meanBear, by.column = FALSE)) %>%
+  select(DeployID, TripID, Longitude, Latitude, Start:bearing)
+
+# segments: only the segments that satisfy transit criteria
+segments <- segments0 %>%
+  na.omit %>%
+  filter(maxGap <= 180,
+         sdSpd < 1.5,
+         nTransit > 12,
+         displacement > 1e4)
+
+# Export tracks, segments0, and segments
+write.csv(tracks, '../data/out/TransitSegments/Tracks.csv', row.names = FALSE)
+write.csv(segments0, '../data/out/TransitSegments/Segments0.csv', row.names = FALSE)
+write.csv(segments, '../data/out/TransitSegments/Segments.csv', row.names = FALSE)
+save(tracks, segments0, segments, file = '../data/out/TransitSegments/Segments.RData')
+```
+
+```{r segmentSummary}
+segments %>% 
+  ggplot(aes(x = DeployID,
+             fill = Leg)) +
+  geom_bar() +
+  labs(y = 'Count of Segments',
+       title = 'Distribution of Segments Across Deployments')
+
+segments %>% 
+  ggplot(aes(x = Start,
+             y = DeployID)) +
+  geom_point() +
+  scale_x_datetime(date_breaks = '2 weeks',
+                   date_labels = '%e %b') +
+  labs(x = 'Segment Date',
+       title = 'Temporal Distribution of Segments')
+
+segments %>%
+  ggplot(aes(x = as.Date(Start))) +
+  stat_bin(aes(y = cumsum(..count..) / sum(..count..)), 
+           binwidth = 2,
+           geom = 'step') +
+  scale_x_date(date_breaks = '2 weeks',
+               date_labels = '%e %b') +
+  labs(x = 'Date',
+       y = 'Fraction of Segments',
+       title = 'Cumulative Temporal Distribution of Segments')
+```
+
+Transit segments are unevenly distributed among individuals due to differences in deployment duration. At the low end, 1147 and 1156 both have ~100 segments, while 1159 has almost 2,000. Temporally, there is an inflection point around the middle of July. Looking at these plots, I suggest excluding deployments 1147, 1155, and 1156 as questionable quality and set a temporal cut off at July 17th (50 days after deployment) to keep data internally consistent.

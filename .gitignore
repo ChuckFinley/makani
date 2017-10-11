@@ -1,1 +1,5 @@
 MHI_GPS_TDR.sqlite
+.Rproj.user
+.Rhistory
+src/*_cache/*
+data/*
