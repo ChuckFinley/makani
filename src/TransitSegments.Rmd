@@ -14,7 +14,6 @@ output: html_document
 
 ```{r setup, echo = FALSE, message = FALSE}
 knitr::opts_chunk$set(
-	echo = FALSE,
 	message = FALSE,
 	warning = FALSE,
 	cache = TRUE
@@ -25,7 +24,7 @@ library(zoo)
 library(geosphere)
 library(ggplot2)
 library(knitr)
-# library(tidyr)
+library(tidyr)
 # library(mosaic)
 # library(RSQLite)
 # library(dbplyr)
@@ -175,3 +174,51 @@ segments %>%
 ```
 
 Transit segments are unevenly distributed among individuals due to differences in deployment duration. At the low end, 1147 and 1156 both have ~100 segments, while 1159 has almost 2,000. Temporally, there is an inflection point around the middle of July. Looking at these plots, I suggest excluding deployments 1147, 1155, and 1156 as questionable quality and set a temporal cut off at July 17th (50 days after deployment) to keep data internally consistent.
+
+Using the DeployID and date restrictions, we find the following:
+
+```{r segPerTrip}
+# Exclusion parameters
+excludeDID <- c(1147, 1155, 1156)
+cutoffDate <- ymd('2016-07-18', tz = 'UTC')
+
+# Outbound and inbound segments per trip
+segPerTrip <- segments %>%
+  filter(!(DeployID %in% excludeDID),
+         Start < cutoffDate) %>%
+  group_by(TripID, Leg) %>%
+  summarize(N = n()) %>%
+  ungroup %>%
+  spread(Leg, N)
+  
+# Summary table: out only, in only, both segments
+segPerTrip %>%
+  summarize(OutOnly = sum(!is.na(Outbound) & is.na(Inbound)),
+            InOnly = sum(is.na(Outbound) & !is.na(Inbound)),
+            OutIn = sum(!is.na(Outbound) & !is.na(Inbound)))
+
+# Trips with out and in by bird
+segPerTrip %>%
+  mutate(DeployID = factor(substr(TripID, 1, 4))) %>%
+  group_by(DeployID) %>%
+  summarize(OutIn = sum(!is.na(Outbound) & !is.na(Inbound)),
+            OutOnly = sum(!is.na(Outbound) & is.na(Inbound)),
+            InOnly = sum(is.na(Outbound) & !is.na(Inbound))) %>%
+  gather(Legs, Count, OutIn:InOnly) %>%
+  mutate(Legs = factor(Legs, 
+                       levels = c('InOnly', 'OutOnly', 'OutIn'),
+                       labels = c('Inbound only', 'Outbound only', 'Outbound and Inbound'))) %>%
+  ggplot(aes(x = DeployID,
+             y = Count,
+             fill = Legs)) +
+  geom_bar(stat = 'identity') +
+  labs(y = 'Count of Trips',
+       title = 'Trips by Segment Legs Across Birds') +
+  theme(legend.position = 'bottom')
+```
+
+ * 62 trips only have outbound segments
+ * 138 trips only have inbound segments
+ * 169 trips have both segments
+ * Tracked birds had between 7 and 24 trips with both outbound and inbound segments
+ 
