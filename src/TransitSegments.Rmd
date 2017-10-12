@@ -25,19 +25,15 @@ library(geosphere)
 library(ggplot2)
 library(knitr)
 library(tidyr)
-# library(mosaic)
-# library(RSQLite)
-# library(dbplyr)
-# library(foreach)
-# library(iterators)
-# library(RNetCDF)
-# library(abind)
-# library(data.table)
-# library(lme4)
-# library(tcltk)
+library(foreach)
+library(doParallel)
+library(iterators)
+library(mosaic)
+library(RSQLite)
+library(data.table)
 
 # dplyr connections
-MHI_db <- src_sqlite('../data/MHI_GPS_TDR.sqlite')
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
 metadata_db <- tbl(MHI_db, 'Metadata')
 tidytracks_db <- tbl(MHI_db, 'TidyTracks')
 
@@ -181,11 +177,14 @@ Using the DeployID and date restrictions, we find the following:
 # Exclusion parameters
 excludeDID <- c(1147, 1155, 1156)
 cutoffDate <- ymd('2016-07-18', tz = 'UTC')
-
-# Outbound and inbound segments per trip
-segPerTrip <- segments %>%
+validSegments <- segments %>%
+  ungroup %>%
   filter(!(DeployID %in% excludeDID),
          Start < cutoffDate) %>%
+  mutate(SegmentID = seq(DeployID))
+
+# Outbound and inbound segments per trip
+segPerTrip <- validSegments %>%
   group_by(TripID, Leg) %>%
   summarize(N = n()) %>%
   ungroup %>%
@@ -222,3 +221,92 @@ segPerTrip %>%
  * 169 trips have both segments
  * Tracked birds had between 7 and 24 trips with both outbound and inbound segments
  
+## Transit Acceleration
+Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns.
+
+```{r transitAcc, cache = TRUE}
+# Acceleration metadata
+accMeta <- metadata_db %>%
+  filter(Species == 'RFBO',
+         GPS_type == 'e-obs',
+         SubColCode == 'KPC') %>%
+  select(DeployID, GPS_ID) %>%
+  collect %>% 
+  mutate(GPS_ID = as.integer(GPS_ID),
+         DeployID = factor(DeployID)) %>%
+  left_join(read.csv('../data/calib_const.csv'),
+            by = c('GPS_ID' = 'TagID'))
+
+# Segments joined with acceleration metadata
+segmentsACCmeta <- validSegments %>%
+  left_join(accMeta, by = 'DeployID') %>%
+  as.data.frame %>%
+  arrange(DeployID, TripID)
+
+# Acceleration data for each segment
+# Register parallel back end
+accCl <- makeCluster(3)
+registerDoParallel(makeCluster)
+taskPackages <- c('dplyr', 'lubridate')
+# Process acceleration data by deployment and segment
+segmentsACC <- foreach(accMetaRow = iter(accMeta, by = 'row'),
+                       .combine = rbind) %do% {
+  # Load acceleration file
+  acc.file <- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
+  acc.data <- read.csv(acc.file, stringsAsFactors = FALSE) %>%
+    mutate(TimestampUTC = as.POSIXct(timestamp, format = '%Y-%m-%d %H:%M:%OS', tz = 'UTC'),
+           BurstID = row_number()) %>%
+    select(TimestampUTC, BurstID,
+           acc.raw = eobs.accelerations.raw, 
+           acc.freq = eobs.acceleration.sampling.frequency.per.axis)
+  
+  # Gather the segments from the current deployment
+  taskList <- filter(segmentsACCmeta,
+                     DeployID == accMetaRow$DeployID)
+  
+  # Process acceleration data for each segment
+  deployACC <- foreach(segment = iter(taskList, by = 'row'),
+                       .combine = rbind,
+                       .packages = taskPackages) %do% {
+    # Acceleration sampling frequency (20hz)
+    acc.freq <- acc.data$acc.freq[1]
+    
+    # Filter down to acceleration data from segment
+    acc.data %>%
+    filter(TimestampUTC >= segment$Start, TimestampUTC <= segment$End) %>%
+      # Split raw acceleration data and convert to data frame
+      rowwise %>% 
+      do({
+        cbind(.,
+              strsplit(.$acc.raw, ' ') %>%
+                unlist %>%
+                as.numeric %>%
+                matrix(ncol = 3, byrow = TRUE, dimnames = list(NULL, c('X0', 'Y0', 'Z0'))) %>%
+                as.data.frame,
+              stringsAsFactors = FALSE)
+      }) %>%
+      ungroup %>%
+      # Drop raw acceleration data
+      select(-acc.raw) %>% 
+      # Join segment data
+      cbind(segment) %>%
+      group_by(BurstID) %>% 
+      # Calculate acceleration timestamp and calibrate acceleration data
+      mutate(ACCTimestampUTC = TimestampUTC + (seq_along(X0) - 1) / acc.freq,
+             X = bX + mX * X0,
+             Y = bY + mY * Y0,
+             Z = bZ + mZ * Z0,
+             staticX = mean(X),
+             staticY = mean(Y),
+             staticZ = mean(Z),
+             dynX = X - staticX,
+             dynY = Y - staticY,
+             dynZ = Z - staticZ,
+             # Variance of dynamic heave in a sliding window of 0.5s
+             varDynZ = rollapply(dynZ, 11, var, fill = NA, partial = FALSE, align = 'center')) %>%
+      ungroup
+  }
+}
+```
+
+From visual inspection, threshold for flap/glide is var(ODBA) = 50.
