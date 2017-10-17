@@ -255,8 +255,8 @@ segmentsACCmeta <- validSegments %>%
 # Acceleration data for each segment
 # Written to MHI_db because acceleration data is too big to keep in memory
 # Process acceleration data by deployment and segment
-foreach(accMetaRow = iter(accMeta, by = 'row'),
-        .combine = rbind) %do% {
+accelerationProcessing <- foreach(accMetaRow = iter(accMeta, by = 'row'),
+                                  .combine = rbind) %do% {
   # Load acceleration file
   acc.file <- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
   acc.data <- read.csv(acc.file, stringsAsFactors = FALSE) %>%
@@ -336,4 +336,8 @@ foreach(accMetaRow = iter(accMeta, by = 'row'),
     }
   }
 }
+
+accelerationProcessing %>%
+  group_by(DeployID, Processed, Issue) %>%
+  summarize(N = n())
 ```
