@@ -255,7 +255,7 @@ segmentsACCmeta <- validSegments %>%
 # Acceleration data for each segment
 # Written to MHI_db because acceleration data is too big to keep in memory
 # Process acceleration data by deployment and segment
-foreach(accMetaRow = iter(accMeta[1:2,], by = 'row'),
+foreach(accMetaRow = iter(accMeta, by = 'row'),
         .combine = rbind) %do% {
   # Load acceleration file
   acc.file <- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
@@ -271,7 +271,7 @@ foreach(accMetaRow = iter(accMeta[1:2,], by = 'row'),
                      DeployID == accMetaRow$DeployID)
   
   # Process acceleration data for each segment
-  deployACC <- foreach(seg = iter(taskList[1:2,], by = 'row'),
+  deployACC <- foreach(seg = iter(taskList, by = 'row'),
                        .combine = rbind) %do% {
     # Acceleration sampling frequency (20hz)
     acc.freq <- acc.data$acc.freq[1]
@@ -279,6 +279,11 @@ foreach(accMetaRow = iter(accMeta[1:2,], by = 'row'),
     # Filter temporally to acceleration data from segment
     segAccRaw <- acc.data %>%
       filter(TimestampUTC >= seg$Start, TimestampUTC <= seg$End)
+    if(nrow(segAccRaw) > 0)
+      return(data.frame(DeployID = seg$DeployID,
+                        SegmentID = seg$SegmentID,
+                        Processed = FALSE,
+                        Issue = 'NoRawData'))
     
     # Process each burst by splitting the raw acceleration and calibrating
     # Write to a SQLite table with columns: 
@@ -317,11 +322,13 @@ foreach(accMetaRow = iter(accMeta[1:2,], by = 'row'),
                    overwrite = FALSE, append = TRUE)
       data.frame(DeployID = seg$DeployID,
                  SegmentID = seg$SegmentID,
-                 Processed = TRUE)
+                 Processed = TRUE,
+                 Issue = '')
     } else {
       data.frame(DeployID = seg$DeployID,
                  SegmentID = seg$SegmentID,
-                 Processed = FALSE)
+                 Processed = FALSE,
+                 Issue = 'NoProcessedData')
     }
   }
 }
