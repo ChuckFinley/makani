@@ -265,6 +265,8 @@ foreach(accMetaRow = iter(accMeta, by = 'row'),
     select(TimestampUTC, BurstID,
            acc.raw = eobs.accelerations.raw, 
            acc.freq = eobs.acceleration.sampling.frequency.per.axis)
+  # Acceleration sampling frequency (20hz)
+  acc.freq <- acc.data$acc.freq[1]
   
   # Gather the segments from the deployment specified in accMetaRow
   taskList <- filter(segmentsACCmeta,
@@ -273,13 +275,11 @@ foreach(accMetaRow = iter(accMeta, by = 'row'),
   # Process acceleration data for each segment
   deployACC <- foreach(seg = iter(taskList, by = 'row'),
                        .combine = rbind) %do% {
-    # Acceleration sampling frequency (20hz)
-    acc.freq <- acc.data$acc.freq[1]
     
     # Filter temporally to acceleration data from segment
     segAccRaw <- acc.data %>%
       filter(TimestampUTC >= seg$Start, TimestampUTC <= seg$End)
-    if(nrow(segAccRaw) > 0)
+    if(nrow(segAccRaw) == 0)
       return(data.frame(DeployID = seg$DeployID,
                         SegmentID = seg$SegmentID,
                         Processed = FALSE,
@@ -292,6 +292,10 @@ foreach(accMetaRow = iter(accMeta, by = 'row'),
     #   StaticX, StaticY, StaticZ, DynX, DynY, DynZ
     segAccProcessed <- foreach(burst = iter(segAccRaw, by = 'row'),
                                .combine = rbind) %do% {
+      # Verify acceleration data exists
+      if(nchar(burst$acc.raw) == 0)
+        return(data.frame())
+                                 
       # Acceleration data in long format
       longACC <- strsplit(burst$acc.raw, ' ') %>%
         unlist %>%
