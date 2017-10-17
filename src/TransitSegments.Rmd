@@ -12,7 +12,7 @@ knit: (function(inputFile, encoding) {
 output: html_document
 ---
 
-```{r setup, echo = FALSE, message = FALSE}
+```{r setup, message = FALSE}
 knitr::opts_chunk$set(
 	message = FALSE,
 	warning = FALSE,
@@ -183,6 +183,9 @@ validSegments <- segments %>%
          Start < cutoffDate) %>%
   mutate(SegmentID = seq(DeployID))
 
+# Save validSegments to RData file
+save(excludeDID, cutoffDate, validSegments, file = '../data/out/TransitSegments/ValidSegments.RData')
+
 # Outbound and inbound segments per trip
 segPerTrip <- validSegments %>%
   group_by(TripID, Leg) %>%
@@ -197,6 +200,7 @@ segPerTrip %>%
             OutIn = sum(!is.na(Outbound) & !is.na(Inbound)))
 
 # Trips with out and in by bird
+legLabels <- c('Inbound only', 'Outbound only', 'Outbound and Inbound')
 segPerTrip %>%
   mutate(DeployID = factor(substr(TripID, 1, 4))) %>%
   group_by(DeployID) %>%
@@ -206,7 +210,7 @@ segPerTrip %>%
   gather(Legs, Count, OutIn:InOnly) %>%
   mutate(Legs = factor(Legs, 
                        levels = c('InOnly', 'OutOnly', 'OutIn'),
-                       labels = c('Inbound only', 'Outbound only', 'Outbound and Inbound'))) %>%
+                       labels = legLabels)) %>%
   ggplot(aes(x = DeployID,
              y = Count,
              fill = Legs)) +
@@ -224,18 +228,23 @@ segPerTrip %>%
 ## Transit Acceleration
 Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns.
 
-```{r transitAcc, cache = TRUE}
+```{r transitAcc, output = 'hide'}
 # Acceleration metadata
 accMeta <- metadata_db %>%
+  # Filter to the e-obs tagged RFBO from KPNWR
   filter(Species == 'RFBO',
          GPS_type == 'e-obs',
          SubColCode == 'KPC') %>%
+  # Select the GPS_ID (for finding the acceleration data file)
   select(DeployID, GPS_ID) %>%
   collect %>% 
   mutate(GPS_ID = as.integer(GPS_ID),
          DeployID = factor(DeployID)) %>%
+  # Join the calibration constants
   left_join(read.csv('../data/calib_const.csv'),
-            by = c('GPS_ID' = 'TagID'))
+            by = c('GPS_ID' = 'TagID')) %>%
+  # Keep only the deployments with valid segments
+  semi_join(validSegments, by = 'DeployID')
 
 # Segments joined with acceleration metadata
 segmentsACCmeta <- validSegments %>%
@@ -244,13 +253,10 @@ segmentsACCmeta <- validSegments %>%
   arrange(DeployID, TripID)
 
 # Acceleration data for each segment
-# Register parallel back end
-accCl <- makeCluster(3)
-registerDoParallel(makeCluster)
-taskPackages <- c('dplyr', 'lubridate')
+# Written to MHI_db because acceleration data is too big to keep in memory
 # Process acceleration data by deployment and segment
-segmentsACC <- foreach(accMetaRow = iter(accMeta, by = 'row'),
-                       .combine = rbind) %do% {
+foreach(accMetaRow = iter(accMeta[1:2,], by = 'row'),
+        .combine = rbind) %do% {
   # Load acceleration file
   acc.file <- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
   acc.data <- read.csv(acc.file, stringsAsFactors = FALSE) %>%
@@ -260,53 +266,63 @@ segmentsACC <- foreach(accMetaRow = iter(accMeta, by = 'row'),
            acc.raw = eobs.accelerations.raw, 
            acc.freq = eobs.acceleration.sampling.frequency.per.axis)
   
-  # Gather the segments from the current deployment
+  # Gather the segments from the deployment specified in accMetaRow
   taskList <- filter(segmentsACCmeta,
                      DeployID == accMetaRow$DeployID)
   
   # Process acceleration data for each segment
-  deployACC <- foreach(segment = iter(taskList, by = 'row'),
-                       .combine = rbind,
-                       .packages = taskPackages) %do% {
+  deployACC <- foreach(seg = iter(taskList[1:2,], by = 'row'),
+                       .combine = rbind) %do% {
     # Acceleration sampling frequency (20hz)
     acc.freq <- acc.data$acc.freq[1]
     
-    # Filter down to acceleration data from segment
-    acc.data %>%
-    filter(TimestampUTC >= segment$Start, TimestampUTC <= segment$End) %>%
-      # Split raw acceleration data and convert to data frame
-      rowwise %>% 
-      do({
-        cbind(.,
-              strsplit(.$acc.raw, ' ') %>%
-                unlist %>%
-                as.numeric %>%
-                matrix(ncol = 3, byrow = TRUE, dimnames = list(NULL, c('X0', 'Y0', 'Z0'))) %>%
-                as.data.frame,
-              stringsAsFactors = FALSE)
-      }) %>%
-      ungroup %>%
-      # Drop raw acceleration data
-      select(-acc.raw) %>% 
-      # Join segment data
-      cbind(segment) %>%
-      group_by(BurstID) %>% 
-      # Calculate acceleration timestamp and calibrate acceleration data
-      mutate(ACCTimestampUTC = TimestampUTC + (seq_along(X0) - 1) / acc.freq,
-             X = bX + mX * X0,
-             Y = bY + mY * Y0,
-             Z = bZ + mZ * Z0,
-             staticX = mean(X),
-             staticY = mean(Y),
-             staticZ = mean(Z),
-             dynX = X - staticX,
-             dynY = Y - staticY,
-             dynZ = Z - staticZ,
-             # Variance of dynamic heave in a sliding window of 0.5s
-             varDynZ = rollapply(dynZ, 11, var, fill = NA, partial = FALSE, align = 'center')) %>%
-      ungroup
+    # Filter temporally to acceleration data from segment
+    segAccRaw <- acc.data %>%
+      filter(TimestampUTC >= seg$Start, TimestampUTC <= seg$End)
+    
+    # Process each burst by splitting the raw acceleration and calibrating
+    # Write to a SQLite table with columns: 
+    #   DeployID, SegmentID, BurstID, 
+    #   ACCTimestampUTC, X0, Y0, Z0, X, Y, Z,
+    #   StaticX, StaticY, StaticZ, DynX, DynY, DynZ
+    segAccProcessed <- foreach(burst = iter(segAccRaw, by = 'row'),
+                               .combine = rbind) %do% {
+      # Acceleration data in long format
+      longACC <- strsplit(burst$acc.raw, ' ') %>%
+        unlist %>%
+        as.numeric %>%
+        matrix(ncol = 3, byrow = TRUE, dimnames = list(NULL, c('X0', 'Y0', 'Z0'))) %>%
+        as.data.frame
+      
+      # Calibrate acceleration
+      mutate(longACC,
+             DeployID = seg$DeployID,
+             SegmentID = seg$SegmentID,
+             BurstID = burst$BurstID,
+             ACCTimestampUTC = burst$TimestampUTC + (seq_along(X0) - 1) / acc.freq,
+             X = seg$bX + seg$mX * X0,
+             Y = seg$bY + seg$mY * Y0,
+             Z = seg$bZ + seg$mZ * Z0,
+             StaticX = mean(X),
+             StaticY = mean(Y),
+             StaticZ = mean(Z),
+             DynX = X - StaticX,
+             DynY = Y - StaticY,
+             DynZ = Z - StaticZ)
+    }
+    
+    # If the segment has acceleration data, add it to the SQLite table
+    if(nrow(segAccProcessed) > 0) {
+      dbWriteTable(MHI_db$con, 'SegmentACC', segAccProcessed,
+                   overwrite = FALSE, append = TRUE)
+      data.frame(DeployID = seg$DeployID,
+                 SegmentID = seg$SegmentID,
+                 Processed = TRUE)
+    } else {
+      data.frame(DeployID = seg$DeployID,
+                 SegmentID = seg$SegmentID,
+                 Processed = FALSE)
+    }
   }
 }
 ```
-
-From visual inspection, threshold for flap/glide is var(ODBA) = 50.
