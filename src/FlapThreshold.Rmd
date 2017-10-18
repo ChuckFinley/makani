@@ -1,0 +1,81 @@
+---
+title: "Flap Threshold"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'FlapThreshold.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
+output: html_document
+---
+
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(geosphere)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(foreach)
+library(doParallel)
+library(iterators)
+library(mosaic)
+library(RSQLite)
+library(data.table)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+acceleration_db <- tbl(MHI_db, 'SegmentACC')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+```
+
+This chunk has functions for visualizing acceleration by segment.
+
+```{r vizAcc}
+# This function retrieves segment acceleration data from database
+get.acc <- function(segID) {
+  acceleration_db %>%
+    filter(SegmentID == segID) %>%
+    collect(n = Inf) %>%
+    transmute(DeployID,
+              SegmentID,
+              BurstID,
+              ACCTimestampUTC = as.POSIXct(ACCTimestampUTC, 
+                                           tz = 'UTC', 
+                                           origin = POSIX.origin),
+              X, Y, Z,
+              DynX, DynY, DynZ)
+}
+# This function plots the heave acceleration bursts from a segment. Optionally can also
+#   color code flapping points based on a sliding window of variance and a threshold.
+plot.acc <- function(segID, window = NULL, threshold = NULL) {
+  # Retrieve segment acceleration data from database
+  acc.data <- get.acc(segID)
+  # Filter segment data
+  seg.data <- filter(validSegments, SegmentID == segID)
+  
+  # Plot acceleration data faceted by burst
+  ggplot(acc.data, aes(x = ACCTimestampUTC, y = DynZ)) + 
+    geom_line() + 
+    geom_point() + 
+    facet_wrap(~ BurstID, scales = 'free_x') +
+    labs(x = 'Time', 
+         y = 'Dynamic Heave (m/s^2)',
+         title = sprintf('Dynamic Heave Along Segment %i', seg.data$SegmentID),
+         caption = sprintf('DeployID %i, segment beginning %s',
+                           seg.data$DeployID,
+                           format(seg.data$Start, '%F %R')))
+} 
+```

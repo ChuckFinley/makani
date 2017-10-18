@@ -226,9 +226,9 @@ segPerTrip %>%
  * Tracked birds had between 7 and 24 trips with both outbound and inbound segments
  
 ## Transit Acceleration
-Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns.
+Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns. Calibrate the acceleration data to m/s^2 and separate the static from dynamic acceleration. The results are written to a table called SegmentACC.
 
-```{r transitAcc, output = 'hide'}
+```{r transitAcc}
 # Acceleration metadata
 accMeta <- metadata_db %>%
   # Filter to the e-obs tagged RFBO from KPNWR
