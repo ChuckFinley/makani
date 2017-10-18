@@ -118,11 +118,36 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Transit Segments</h1>
 <h4 class="author"><em>Max Czapanskiy</em></h4>
-<h4 class="date"><em>11 October, 2017</em></h4>
+<h4 class="date"><em>17 October, 2017</em></h4>
 
 </div>
 
 
+<pre class="r"><code>knitr::opts_chunk$set(
+    message = FALSE,
+    warning = FALSE,
+    cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(geosphere)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(foreach)
+library(doParallel)
+library(iterators)
+library(mosaic)
+library(RSQLite)
+library(data.table)
+
+# dplyr connections
+MHI_db &lt;- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db &lt;- tbl(MHI_db, 'Metadata')
+tidytracks_db &lt;- tbl(MHI_db, 'TidyTracks')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')</code></pre>
 <div id="identify-transit-segments" class="section level2">
 <h2>Identify Transit Segments</h2>
 <p>Transit segments are the basis of analysis for the flight cost model.</p>
@@ -251,11 +276,17 @@ save(tracks, segments0, segments, file = '../data/out/TransitSegments/Segments.R
 <pre class="r"><code># Exclusion parameters
 excludeDID &lt;- c(1147, 1155, 1156)
 cutoffDate &lt;- ymd('2016-07-18', tz = 'UTC')
-
-# Outbound and inbound segments per trip
-segPerTrip &lt;- segments %&gt;%
+validSegments &lt;- segments %&gt;%
+  ungroup %&gt;%
   filter(!(DeployID %in% excludeDID),
          Start &lt; cutoffDate) %&gt;%
+  mutate(SegmentID = seq(DeployID))
+
+# Save validSegments to RData file
+save(excludeDID, cutoffDate, validSegments, file = '../data/out/TransitSegments/ValidSegments.RData')
+
+# Outbound and inbound segments per trip
+segPerTrip &lt;- validSegments %&gt;%
   group_by(TripID, Leg) %&gt;%
   summarize(N = n()) %&gt;%
   ungroup %&gt;%
@@ -271,6 +302,7 @@ segPerTrip %&gt;%
 ##     &lt;int&gt;  &lt;int&gt; &lt;int&gt;
 ## 1      62    138   169</code></pre>
 <pre class="r"><code># Trips with out and in by bird
+legLabels &lt;- c('Inbound only', 'Outbound only', 'Outbound and Inbound')
 segPerTrip %&gt;%
   mutate(DeployID = factor(substr(TripID, 1, 4))) %&gt;%
   group_by(DeployID) %&gt;%
@@ -280,7 +312,7 @@ segPerTrip %&gt;%
   gather(Legs, Count, OutIn:InOnly) %&gt;%
   mutate(Legs = factor(Legs, 
                        levels = c('InOnly', 'OutOnly', 'OutIn'),
-                       labels = c('Inbound only', 'Outbound only', 'Outbound and Inbound'))) %&gt;%
+                       labels = legLabels)) %&gt;%
   ggplot(aes(x = DeployID,
              y = Count,
              fill = Legs)) +
@@ -295,6 +327,138 @@ segPerTrip %&gt;%
 <li>169 trips have both segments</li>
 <li>Tracked birds had between 7 and 24 trips with both outbound and inbound segments</li>
 </ul>
+</div>
+<div id="transit-acceleration" class="section level2">
+<h2>Transit Acceleration</h2>
+<p>Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns.</p>
+<pre class="r"><code># Acceleration metadata
+accMeta &lt;- metadata_db %&gt;%
+  # Filter to the e-obs tagged RFBO from KPNWR
+  filter(Species == 'RFBO',
+         GPS_type == 'e-obs',
+         SubColCode == 'KPC') %&gt;%
+  # Select the GPS_ID (for finding the acceleration data file)
+  select(DeployID, GPS_ID) %&gt;%
+  collect %&gt;% 
+  mutate(GPS_ID = as.integer(GPS_ID),
+         DeployID = factor(DeployID)) %&gt;%
+  # Join the calibration constants
+  left_join(read.csv('../data/calib_const.csv'),
+            by = c('GPS_ID' = 'TagID')) %&gt;%
+  # Keep only the deployments with valid segments
+  semi_join(validSegments, by = 'DeployID')
+
+# Segments joined with acceleration metadata
+segmentsACCmeta &lt;- validSegments %&gt;%
+  left_join(accMeta, by = 'DeployID') %&gt;%
+  as.data.frame %&gt;%
+  arrange(DeployID, TripID)
+
+# Acceleration data for each segment
+# Written to MHI_db because acceleration data is too big to keep in memory
+# Process acceleration data by deployment and segment
+accelerationProcessing &lt;- foreach(accMetaRow = iter(accMeta, by = 'row'),
+                                  .combine = rbind) %do% {
+  # Load acceleration file
+  acc.file &lt;- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
+  acc.data &lt;- read.csv(acc.file, stringsAsFactors = FALSE) %&gt;%
+    mutate(TimestampUTC = as.POSIXct(timestamp, format = '%Y-%m-%d %H:%M:%OS', tz = 'UTC'),
+           BurstID = row_number()) %&gt;%
+    select(TimestampUTC, BurstID,
+           acc.raw = eobs.accelerations.raw, 
+           acc.freq = eobs.acceleration.sampling.frequency.per.axis)
+  # Acceleration sampling frequency (20hz)
+  acc.freq &lt;- acc.data$acc.freq[1]
+  
+  # Gather the segments from the deployment specified in accMetaRow
+  taskList &lt;- filter(segmentsACCmeta,
+                     DeployID == accMetaRow$DeployID)
+  
+  # Process acceleration data for each segment
+  deployACC &lt;- foreach(seg = iter(taskList, by = 'row'),
+                       .combine = rbind) %do% {
+    
+    # Filter temporally to acceleration data from segment
+    segAccRaw &lt;- acc.data %&gt;%
+      filter(TimestampUTC &gt;= seg$Start, TimestampUTC &lt;= seg$End)
+    if(nrow(segAccRaw) == 0)
+      return(data.frame(DeployID = seg$DeployID,
+                        SegmentID = seg$SegmentID,
+                        Processed = FALSE,
+                        Issue = 'NoRawData'))
+    
+    # Process each burst by splitting the raw acceleration and calibrating
+    # Write to a SQLite table with columns: 
+    #   DeployID, SegmentID, BurstID, 
+    #   ACCTimestampUTC, X0, Y0, Z0, X, Y, Z,
+    #   StaticX, StaticY, StaticZ, DynX, DynY, DynZ
+    segAccProcessed &lt;- foreach(burst = iter(segAccRaw, by = 'row'),
+                               .combine = rbind) %do% {
+      # Verify acceleration data exists
+      if(nchar(burst$acc.raw) == 0)
+        return(data.frame())
+                                 
+      # Acceleration data in long format
+      longACC &lt;- strsplit(burst$acc.raw, ' ') %&gt;%
+        unlist %&gt;%
+        as.numeric %&gt;%
+        matrix(ncol = 3, byrow = TRUE, dimnames = list(NULL, c('X0', 'Y0', 'Z0'))) %&gt;%
+        as.data.frame
+      
+      # Calibrate acceleration
+      mutate(longACC,
+             DeployID = seg$DeployID,
+             SegmentID = seg$SegmentID,
+             BurstID = burst$BurstID,
+             ACCTimestampUTC = burst$TimestampUTC + (seq_along(X0) - 1) / acc.freq,
+             X = seg$bX + seg$mX * X0,
+             Y = seg$bY + seg$mY * Y0,
+             Z = seg$bZ + seg$mZ * Z0,
+             StaticX = mean(X),
+             StaticY = mean(Y),
+             StaticZ = mean(Z),
+             DynX = X - StaticX,
+             DynY = Y - StaticY,
+             DynZ = Z - StaticZ)
+    }
+    
+    # If the segment has acceleration data, add it to the SQLite table
+    if(nrow(segAccProcessed) &gt; 0) {
+      dbWriteTable(MHI_db$con, 'SegmentACC', segAccProcessed,
+                   overwrite = FALSE, append = TRUE)
+      data.frame(DeployID = seg$DeployID,
+                 SegmentID = seg$SegmentID,
+                 Processed = TRUE,
+                 Issue = '')
+    } else {
+      data.frame(DeployID = seg$DeployID,
+                 SegmentID = seg$SegmentID,
+                 Processed = FALSE,
+                 Issue = 'NoProcessedData')
+    }
+  }
+}
+
+accelerationProcessing %&gt;%
+  group_by(DeployID, Processed, Issue) %&gt;%
+  summarize(N = n())</code></pre>
+<pre><code>## Source: local data frame [12 x 4]
+## Groups: DeployID, Processed [?]
+## 
+##    DeployID Processed  Issue     N
+##      &lt;fctr&gt;     &lt;lgl&gt; &lt;fctr&gt; &lt;int&gt;
+## 1      1145      TRUE          663
+## 2      1146      TRUE          766
+## 3      1148      TRUE          787
+## 4      1149      TRUE          540
+## 5      1150      TRUE          990
+## 6      1151      TRUE          984
+## 7      1152      TRUE          559
+## 8      1153      TRUE         1262
+## 9      1154      TRUE         1091
+## 10     1157      TRUE          598
+## 11     1158      TRUE          786
+## 12     1159      TRUE         1170</code></pre>
 </div>
 
 
