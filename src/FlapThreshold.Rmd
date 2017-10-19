@@ -97,7 +97,7 @@ flap.thresh <- 5
 plot.acc <- function(segID) {
   # Retrieve segment acceleration data from database
   # Calculate variance in dynamic heave
-  acc.data <- get.acc(segID) %>%
+  acc.data <- get.acc(segID, src_sqlite('../data/MHI_GPS.sqlite')) %>%
     mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA),
            FlapGlide = factor(ifelse(SdDynZ >= flap.thresh, 'Flap', 'Glide')))
   
@@ -138,5 +138,17 @@ plot.acc <- function(segID) {
           # Remove the facet strips
           strip.background = element_blank(),
           strip.text = element_blank())
+}
+```
+
+Randomly select 100 segments and plot their acceleration traces
+```{r plotAcc}
+set.seed(1136)
+plot.segs <- sample(validSegments$SegmentID, 100, replace = FALSE)
+foreach(segId = plot.segs) %do% {
+  p <- plot.acc(segId)
+  plot.path <- '../analysis/figures/SegmentAcceleration/'
+  plot.file <- file.path(plot.path, sprintf('%i.png', segId))
+  ggsave(plot.file, p, width = 15, height = 8.8, units = 'in')
 }
 ```
