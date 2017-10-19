@@ -40,10 +40,10 @@ load('../data/out/TransitSegments/ValidSegments.RData')
 Utility functions
 ```{r utility}
 # This function retrieves segment acceleration data from database
-get.acc <- function(segID, con = MHI_db) {
-  # This allows each call to have its own DB connection, otherwise I get an 
-  #   "external pointer is not valid" error in RMarkdown + foreach
-  this.acc_db <- tbl(con, 'SegmentACC')
+get.acc <- function(segID) {
+  # Knitting doesn't play nice with external database connections, so this
+  #   is the workaround.
+  this.acc_db <- tbl(src_sqlite('../data/MHI_GPS.sqlite'), 'SegmentACC')
   this.acc_db %>%
     filter(SegmentID == segID) %>%
     collect(n = Inf) %>%
@@ -69,7 +69,7 @@ foo <- times(10) %do% {
   # Each plot samples 1% of the segments
   p <- foreach(seg = sample_frac(validSegments, 0.01)$SegmentID,
           .combine = rbind) %do% {
-    get.acc(seg, src_sqlite('../data/MHI_GPS.sqlite')) %>%
+    get.acc(seg) %>%
       # Calculate the sd of DynZ over a sliding window
       mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
   } %>%
@@ -97,7 +97,7 @@ flap.thresh <- 5
 plot.acc <- function(segID) {
   # Retrieve segment acceleration data from database
   # Calculate variance in dynamic heave
-  acc.data <- get.acc(segID, src_sqlite('../data/MHI_GPS.sqlite')) %>%
+  acc.data <- get.acc(segID) %>%
     mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA),
            FlapGlide = factor(ifelse(SdDynZ >= flap.thresh, 'Flap', 'Glide')))
   
