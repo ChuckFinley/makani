@@ -75,7 +75,11 @@ foo <- times(10) %do% {
   } %>%
     # Create the histogram
     ggplot(aes(x = SdDynZ)) +
-    geom_histogram(binwidth = 0.2, boundary = 0)
+    geom_histogram(binwidth = 0.2, boundary = 0) +
+    labs(x = 'Standard Deviation of Dynamic Heave (m/s^2)',
+         y = 'Count of Acceleration Points',
+         title = 'Distribution of Standard Deviation of Dynamic Heave\nIndicates a Threshold at 5m/s^2') +
+    xlim(0, 15)
   # ggplot results must be explicitly printed in foreach loops (including times)
   print(p)
 }
@@ -85,7 +89,7 @@ From a visual inspection of the distribution of the standard deviation of dynami
 
 This chunk has functions for visualizing acceleration by segment.
 
-```{r vizAcc}
+```{r vizAccFun}
 flap.thresh <- 5
 
 # This function plots the heave acceleration bursts from a segment. Color codes 
@@ -94,22 +98,45 @@ plot.acc <- function(segID) {
   # Retrieve segment acceleration data from database
   # Calculate variance in dynamic heave
   acc.data <- get.acc(segID) %>%
-    mutate(SdDynZ = rollapply(DynZ, window, sd, align = 'center', fill = NA),
+    mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA),
            FlapGlide = factor(ifelse(SdDynZ >= flap.thresh, 'Flap', 'Glide')))
   
   # Filter segment data
   seg.data <- filter(validSegments, SegmentID == segID)
   
   # Plot acceleration data faceted by burst
-  ggplot(acc.data, aes(x = ACCTimestampUTC, y = DynZ)) + 
+  ggplot(acc.data, 
+         # Put the acceleration timestamp on the x axis and the dynamic heave on the y
+         aes(x = ACCTimestampUTC, y = DynZ)) + 
+    # Plot acceleration with both a line and points
     geom_line() + 
-    geom_point(size = 0.5) + 
+    # Points are color coded by flap/glide
+    geom_point(aes(color = FlapGlide),
+               size = 0.5) + 
+    # Facet by burst. Free the x scale so each burst takes up its facet completely.
     facet_wrap(~ BurstID, scales = 'free_x') +
-    labs(x = 'Time', 
+    # Add axis titles, plot title, and a caption with DeployID and segment start time
+    labs(x = 'Time (seconds since beginning of burst)', 
          y = 'Dynamic Heave (m/s^2)',
          title = sprintf('Dynamic Heave Along Segment %i', seg.data$SegmentID),
          caption = sprintf('DeployID %i, segment beginning %s',
                            seg.data$DeployID,
-                           format(seg.data$Start, '%F %R')))
+                           # %F %R is y-m-d h:m
+                           format(seg.data$Start, '%F %R'))) +
+    # Burst x-axis labels (time) should be seconds since beginning of the burst. So
+    #  we set the x-axis breaks to 1 second and seq_along the breaks to get the labels.
+    scale_x_datetime(breaks = function(lim) seq(lim[1], lim[2], by = 1),
+                     labels = function(breaks) seq_along(breaks) - 1) +
+    # Set the theme to black and white
+    theme_bw(base_size = 12) +
+    # Remove the legend (use the figure caption for flap/glide coloring)
+    theme(legend.position = 'none',
+          # Shrink the axis labels
+          axis.text = element_text(size = 9),
+          # Increase the caption size
+          plot.caption = element_text(size = 14),
+          # Remove the facet strips
+          strip.background = element_blank(),
+          strip.text = element_blank())
 }
 ```
