@@ -24,6 +24,7 @@ library(zoo)
 library(ggplot2)
 library(foreach)
 library(RSQLite)
+library(parallel)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -168,15 +169,42 @@ Annotate segments with flap ratio
 calculateFlapRatio <- function(segID) {
   acc.data <- get.acc(segID) %>%
     mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
-  sum(acc.data$SdDynZ > flap.thresh)
+  sum(acc.data$SdDynZ > flap.thresh, na.rm = TRUE) / nrow(acc.data)
 }
 
-# Set the pbapply progress bar to text type
-pboptions(type = 'txt')
+# Let's go parallel
+nCores <- detectCores() - 1
+flapCl <- makeCluster(nCores)
+clusterExport(flapCl, c('get.acc', 'POSIX.origin', 'sd.win', 'flap.thresh'))
+foo <- clusterEvalQ(flapCl, {
+  library(dplyr)
+  library(zoo)
+})
+  
 # Annotate validSegments with flap ratio
 accSegments <- validSegments %>%
-  mutate(FlapRatio = pbsapply(SegmentID, calculateFlapRatio))
+  mutate(FlapRatio = parSapply(flapCl, SegmentID, calculateFlapRatio))
+
+stopCluster(flapCl)
 
 # Save results to file
 save(accSegments, file = '../data/out/TransitSegments/AccSegments.RData')
+```
+
+Flap ratio diagnostic plots
+```{r viewFlapRatio}
+ggplot(accSegments, aes(x = FlapRatio)) +
+  geom_histogram(binwidth = 0.05,
+                 boundary = 0) +
+  labs(x = 'Flap Ratio',
+       y = 'Count of Segments',
+       title = 'Distribution of Flap Ratio')
+
+ggplot(accSegments,
+       aes(x = Leg,
+           y = FlapRatio)) +
+  geom_boxplot() +
+  labs(x = 'Segment Leg',
+       y = 'Flap Ratio',
+       title = 'Flap Ratios Are Higher For Outbound Segments')
 ```
