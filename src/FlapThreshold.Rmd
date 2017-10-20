@@ -141,14 +141,23 @@ plot.acc <- function(segID) {
 }
 ```
 
-Randomly select 100 segments and plot their acceleration traces
-```{r plotAcc}
+Plot the acceleration traces for a subset of the segments. Randomly select 100 segments, plot their acceleration traces, and save to file. Then randomly select 5 more, plot, and print to the report. (foo is used to suppress output of foreach)
+```{r plotAcc1}
 set.seed(1136)
 plot.segs <- sample(validSegments$SegmentID, 100, replace = FALSE)
-foreach(segId = plot.segs) %do% {
+foo <- foreach(segId = plot.segs) %do% {
   p <- plot.acc(segId)
   plot.path <- '../analysis/figures/SegmentAcceleration/'
   plot.file <- file.path(plot.path, sprintf('%i.png', segId))
   ggsave(plot.file, p, width = 15, height = 8.8, units = 'in')
+}
+```
+
+```{r plotAcc2}
+set.seed(1546)
+plot.segs <- sample(validSegments$SegmentID, 5, replace = FALSE)
+foo <- foreach(segId = plot.segs) %do% {
+  p <- plot.acc(segId)
+  print(p)
 }
 ```
