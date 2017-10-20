@@ -164,14 +164,19 @@ foo <- foreach(segId = plot.segs) %do% {
 
 Annotate segments with flap ratio
 ```{r addFlapRatio}
+# Functionality for calculating flap ratio per segment based on sd(DynZ) threshold
 calculateFlapRatio <- function(segID) {
   acc.data <- get.acc(segID) %>%
     mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
   sum(acc.data$SdDynZ > flap.thresh)
 }
 
+# Set the pbapply progress bar to text type
+pboptions(type = 'txt')
+# Annotate validSegments with flap ratio
 accSegments <- validSegments %>%
-  mutate(FlapRatio = sapply(SegmentID, calculateFlapRatio))
+  mutate(FlapRatio = pbsapply(SegmentID, calculateFlapRatio))
 
+# Save results to file
 save(accSegments, file = '../data/out/TransitSegments/AccSegments.RData')
 ```
