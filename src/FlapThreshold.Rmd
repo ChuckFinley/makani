@@ -161,3 +161,17 @@ foo <- foreach(segId = plot.segs) %do% {
   print(p)
 }
 ```
+
+Annotate segments with flap ratio
+```{r addFlapRatio}
+calculateFlapRatio <- function(segID) {
+  acc.data <- get.acc(segID) %>%
+    mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
+  sum(acc.data$SdDynZ > flap.thresh)
+}
+
+accSegments <- validSegments %>%
+  mutate(FlapRatio = sapply(SegmentID, calculateFlapRatio))
+
+save(accSegments, file = '../data/out/TransitSegments/AccSegments.RData')
+```
