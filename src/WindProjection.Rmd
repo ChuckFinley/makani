@@ -1,0 +1,82 @@
+---
+title: "Wind Projection"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'WindProjection.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
+output: html_document
+---
+
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(foreach)
+library(RSQLite)
+library(parallel)
+library(RNetCDF)
+library(abind)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+acceleration_db <- tbl(MHI_db, 'SegmentACC')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+
+# Load data from earlier reports
+load('../data/out/TransitSegments/Segments.RData')
+load('../data/out/TransitSegments/ValidSegments.RData')
+load('../data/out/TransitSegments/AccSegments.RData')
+```
+
+```{r load_wind}
+# Wind data
+# NOTE: I need to re-download the data for May 28 - July 17, so for now I'm re-using
+#   the June and July data
+
+# File path
+wind.path <- '../data/wind/WRF_HI/WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc'
+june.wind.path <- '../data/wind/WRF_HI/WRF_HI_Best_ef69_0644_a22b_Jun.nc'
+july.wind.path <- '../data/wind/WRF_HI/WRF_HI_Best_42fe_56d1_4307_Jul.nc'
+
+# Load NetCDF file
+wind.nc <- open.nc(wind.path)
+june.wind.nc <- open.nc(june.wind.path)
+july.wind.nc <- open.nc(july.wind.path)
+
+# Print summary
+print.nc(wind.nc)
+
+# Dimension names
+timeDim <- 'time'
+latDim <- 'lat'
+lonDim <- 'lon'
+
+# Variable names
+uVar <- 'Uwind'
+vVar <- 'Vwind'
+
+# Read dimensions and variables
+time.june <- var.get.nc(june.wind.nc, timeDim) %>%
+  as.POSIXct(tz = 'UTC', origin = POSIX.origin)
+time.july <- var.get.nc(july.wind.nc, timeDim) %>%
+  as.POSIXct(tz = 'UTC', origin = POSIX.origin)
+lat <- var.get.nc(june.wind.nc, latDim)
+lon <- var.get.nc(june.wind.nc, lonDim)
+u.june <- var.get.nc(june.wind.nc, uVar)
+u.july <- var.get.nc(july.wind.nc, vVar)
+v.june <- var.get.nc(june.wind.nc, uVar)
+```
