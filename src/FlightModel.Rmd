@@ -1,0 +1,45 @@
+---
+title: "Flight Model"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+  out_dir <- '../analysis/reports';
+  out_file <- file.path(dirname(inputFile), out_dir, 'FlightModel.html');
+  rmarkdown::render(inputFile,
+                    encoding = encoding, 
+                    output_file = out_file);
+})
+output: html_document
+---
+  
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(foreach)
+library(RSQLite)
+library(parallel)
+library(RNetCDF)
+library(oce)
+library(iterators)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+acceleration_db <- tbl(MHI_db, 'SegmentACC')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+
+# Load data from earlier reports
+load('../data/out/TransitSegments/Segments.RData')
+load('../data/out/TransitSegments/ValidSegments.RData')
+load('../data/out/TransitSegments/AccSegments.RData')
+load('../data/out/TransitSegments/WindSegments.RData')
+```
