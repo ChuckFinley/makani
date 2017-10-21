@@ -27,6 +27,7 @@ library(RSQLite)
 library(parallel)
 library(RNetCDF)
 library(oce)
+library(iterators)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -134,4 +135,142 @@ windSegments0 %>%
            !between(Latitude, min(lat.wind), max(lat.wind)))
 ```
 
+Project u and v onto flight path to get tail- and crosswind magnitudes
+```{r project_wind}
+# Function to project wind and get tailwind magnitude
+project <- function(b, u, v) {
+  b.rad <- b * pi / 180
+  x <- cos(b.rad)
+  y <- sin(b.rad)
+  # U = wind vector, V = flight vector
+  # See Methods::Path Analysis
+  # U dot V / ||U||
+  cbind(u, v, x, y) %>%
+    apply(MARGIN = 1, 
+          FUN = function(row) {
+            U <- row[1:2]
+            V <- row[3:4]
+            U %*% V
+          })
+}
 
+# Function to reject wind and get crosswind magnitude (where t is the tailwind magnitude)
+reject <- function(u, v, t) {
+  cbind(u, v, t) %>%
+    apply(MARGIN = 1,
+          FUN = function(row) {
+            U <- row[1:2]
+            t <- row[3]
+            sqrt(U %*% U - t^2)
+          })
+}
+
+# Annotate segments with Tailwind and Crosswind magnitude
+windSegments <- windSegments0 %>%
+  # Drop the six segments outside the model's spatial range
+  na.omit %>%
+  mutate(Tailwind = project(bearing, uWind, vWind),
+         Crosswind = reject(uWind, vWind, Tailwind))
+```
+
+A few plots to visually validate the projection/rejection calculations
+```{r proj_valid}
+# Verify that tailwind/crosswind magnitude equals wind magnitude
+# The histogram of mag([U C]) - mag([T C]) should have a narrow range
+windSegments %>%
+  # Calculate magnitude of wind two ways: [U V] and [T C]
+  mutate(windMag = sqrt(uWind^2 + vWind^2),
+         projMag = sqrt(Tailwind^2 + Crosswind^2),
+         windProjDiff = windMag - projMag) %>%
+  ggplot(aes(x = windProjDiff)) +
+  geom_histogram() +
+  labs(x = 'Difference between [U V] magnitude and [T C] magnitude (m/s)',
+       title = 'Projection/Rejection Validation') +
+  scale_x_continuous(labels = function(l) format(l, digits = 2))
+
+# Randomly plot 4 segments with flight vector, wind vector, and rejection/projection
+set.seed(1647)
+# Vector cross product function from https://stackoverflow.com/questions/15162741/what-is-rs-crossproduct-function/36194961#36194961
+# Used for checking if wind vector is left or right of flight vector
+vector.cross <- function(a, b) {
+    if(length(a)!=3 || length(b)!=3){
+        stop("Cross product is only defined for 3D vectors.");
+    }
+    i1 <- c(2,3,1)
+    i2 <- c(3,1,2)
+    return (a[i1]*b[i2] - a[i2]*b[i1])
+}
+foo <- foreach(seg = iter(sample_n(windSegments, 4), by = 'row')) %do% {
+  # Rotation matrix, used to make crosswind arrow perpendicular to flight vector
+  rot.mat <- matrix(c(0, -1,
+                      1, 0),
+                    nrow = 2)
+  # Flight UNIT vector
+  flight.vec <- c(cos(seg$bearing * pi / 180),
+                  sin(seg$bearing * pi / 180))
+  # Crosswind vector
+  crosswind <- seg$Crosswind * rot.mat %*% flight.vec
+  # Use the cross product to flip the crosswind as necessary
+  if(vector.cross(c(seg$uWind, seg$vWind, 0),
+                  c(flight.vec, 0))[3] < 0)
+    crosswind <- -crosswind
+  
+  p <- mutate(seg,
+              # Beginning and end of flight vector
+              flightX0 = 0,
+              flightY0 = 0,
+              flightX1 = cos(bearing * pi / 180),
+              flightY1 = sin(bearing * pi / 180),
+              # Beginning and end of wind vector
+              windX0 = 0,
+              windY0 = 0,
+              windX1 = uWind,
+              windY1 = vWind,
+              # Beginning and end of tailwind vector
+              tailX0 = 0,
+              tailY0 = 0,
+              tailX1 = Tailwind * flight.vec[1],
+              tailY1 = Tailwind * flight.vec[2],
+              # Beginning and end of crosswind vector
+              crossX0 = tailX1,
+              crossY0 = tailY1,
+              crossX1 = tailX1 + crosswind[1],
+              crossY1 = tailY1 + crosswind[2]) %>%
+    ggplot() +
+    # Plot tailwind with a dashed line
+    geom_segment(aes(x = tailX0,
+                     y = tailY0,
+                     xend = tailX1,
+                     yend = tailY1),
+                 arrow = arrow(),
+                 linetype = 'dashed') +
+    # Plot crosswind with a dashed line
+    geom_segment(aes(x = crossX0,
+                     y = crossY0,
+                     xend = crossX1,
+                     yend = crossY1),
+                 arrow = arrow(),
+                 linetype = 'dashed') +
+    # Plot flight vector with a red line
+    geom_segment(aes(x = flightX0,
+                     y = flightY0,
+                     xend = flightX1,
+                     yend = flightY1),
+                 arrow = arrow(),
+                 color = 'red') +
+    # Plot wind vector with a blue line
+    geom_segment(aes(x = windX0,
+                     y = windY0,
+                     xend = windX1,
+                     yend = windY1),
+                 arrow = arrow(),
+                 color = 'blue') +
+    coord_fixed() +
+    labs(x = 'X (m/s)',
+         y = 'Y (m/s)',
+         title = sprintf('SegmentID %i', seg$SegmentID),
+         caption = 'Flight vector in red, wind vector in blue, tail/crosswinds dashed.')
+  print(p)
+  c(seg$SegmentID)
+}
+```
