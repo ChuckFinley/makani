@@ -26,7 +26,7 @@ library(foreach)
 library(RSQLite)
 library(parallel)
 library(RNetCDF)
-library(abind)
+library(oce)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -43,40 +43,85 @@ load('../data/out/TransitSegments/AccSegments.RData')
 ```
 
 ```{r load_wind}
-# Wind data
-# NOTE: I need to re-download the data for May 28 - July 17, so for now I'm re-using
-#   the June and July data
-
 # File path
 wind.path <- '../data/wind/WRF_HI/WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc'
-june.wind.path <- '../data/wind/WRF_HI/WRF_HI_Best_ef69_0644_a22b_Jun.nc'
-july.wind.path <- '../data/wind/WRF_HI/WRF_HI_Best_42fe_56d1_4307_Jul.nc'
 
 # Load NetCDF file
 wind.nc <- open.nc(wind.path)
-june.wind.nc <- open.nc(june.wind.path)
-july.wind.nc <- open.nc(july.wind.path)
 
 # Print summary
 print.nc(wind.nc)
 
 # Dimension names
-timeDim <- 'time'
-latDim <- 'lat'
-lonDim <- 'lon'
+timeDim <- 'time'   # hours since 2010-05-14 00:00:00.000 UTC
+latDim <- 'lat'     # degrees north
+lonDim <- 'lon'     # degrees east
 
 # Variable names
 uVar <- 'Uwind'
 vVar <- 'Vwind'
 
 # Read dimensions and variables
-time.june <- var.get.nc(june.wind.nc, timeDim) %>%
-  as.POSIXct(tz = 'UTC', origin = POSIX.origin)
-time.july <- var.get.nc(july.wind.nc, timeDim) %>%
-  as.POSIXct(tz = 'UTC', origin = POSIX.origin)
-lat <- var.get.nc(june.wind.nc, latDim)
-lon <- var.get.nc(june.wind.nc, lonDim)
-u.june <- var.get.nc(june.wind.nc, uVar)
-u.july <- var.get.nc(july.wind.nc, vVar)
-v.june <- var.get.nc(june.wind.nc, uVar)
+time.wind.origin <- ymd('2010-05-14', tz = 'UTC')
+time.wind <- hours(var.get.nc(wind.nc, timeDim)) + time.wind.origin
+lat.wind <- var.get.nc(wind.nc, latDim)
+lon.wind <- var.get.nc(wind.nc, lonDim)
+u.wind <- var.get.nc(wind.nc, uVar)
+v.wind <- var.get.nc(wind.nc, vVar)
+```
+
+I use approx3d to perform trilinear interpolation to get U and V components approx3d requires equi-spaced dimensions, but the wind model has slight differences in geospatial spacing. These spacing discrepancies are very small, so the wind accessor ends up using re-discretized versions of longitude and latitude dimensions. The time dimension is equi-spaced (1 hour).
+```{r wind_spacing}
+data.frame(x = lon.wind) %>%
+  mutate(xspacing = lead(x) - x) %>%
+  ggplot(aes(x = xspacing)) +
+  geom_histogram() +
+  labs(x = 'Longitude spacing',
+       title = 'Difference in x-spacing: 1.53e-5 degrees')
+data.frame(y = lat.wind) %>%
+  mutate(yspacing = lead(y) - y) %>%
+  ggplot(aes(x = yspacing)) +
+  geom_histogram() +
+  labs(x = 'Latitude spacing',
+       title = 'Difference in y-spacing: 1.91e-6 degrees')
+```
+
+Functionality for getting wind U and V components
+```{r get_wind}
+# Re-discretized longitude and latitude
+redis.lon <- seq(min(lon.wind), max(lon.wind), length.out = length(lon.wind))
+redis.lat <- seq(min(lat.wind), max(lat.wind), length.out = length(lat.wind))
+get.wind <- function(component, t, x, y) {
+  # Check parameters
+  if(length(component) != 1 || !(component %in% c('u', 'v')))
+    stop('component parameter must be length 1, "u" or "v"')
+  if(!all(between(t, min(time.wind), max(time.wind))))
+    stop('t parameter out of bounds')
+  if(!all(between(x, min(lon.wind), max(lon.wind))))
+    stop('x parameter out of bounds')
+  if(!all(between(y, min(lat.wind), max(lat.wind))))
+    stop('y parameter out of bounds')
+  
+  # Use approx3d from the oce package to perform tri-linear interpolation
+  wind.mat <- if(component == 'u') u.wind else v.wind
+  # approx3d doesn't work with POSIXct, so t gets re-indexed
+  time.wind.int <- seq_along(time.wind)
+  t.int <- approx(time.wind, time.wind.int, t)$y
+  approx3d(redis.lon, redis.lat, time.wind.int, wind.mat, x, y, t.int)
+}
+
+# And a quick test
+lon.test <- lon.wind[3]
+lat.test <- lat.wind[4]
+time.test <- time.wind[5]
+u.test <- u.wind[3, 4, 5]
+v.test <- v.wind[3, 4, 5]
+
+tol <- 1e-3
+if(abs(u.test - get.wind('u', time.test, lon.test, lat.test)) < tol &&
+   abs(v.test - get.wind('v', time.test, lon.test, lat.test)) < tol) {
+  print('get.wind PASS')
+} else {
+  print('get.wind FAIL')
+}
 ```
