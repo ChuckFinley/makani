@@ -97,10 +97,6 @@ get.wind <- function(component, t, x, y) {
     stop('component parameter must be length 1, "u" or "v"')
   if(!all(between(t, min(time.wind), max(time.wind))))
     stop('t parameter out of bounds')
-  if(!all(between(x, min(lon.wind), max(lon.wind))))
-    stop('x parameter out of bounds')
-  if(!all(between(y, min(lat.wind), max(lat.wind))))
-    stop('y parameter out of bounds')
   
   # Use approx3d from the oce package to perform tri-linear interpolation
   wind.mat <- if(component == 'u') u.wind else v.wind
@@ -125,3 +121,17 @@ if(abs(u.test - get.wind('u', time.test, lon.test, lat.test)) < tol &&
   print('get.wind FAIL')
 }
 ```
+
+Annotate segments with the wind vectors spatio-temporally closest to the start of the segment. Six segments are too far north and fall outside the wind dataset.
+```{r add_uv}
+windSegments0 <- accSegments %>%
+  mutate(uWind = get.wind('u', Start, Longitude, Latitude),
+         vWind = get.wind('v', Start, Longitude, Latitude))
+
+# Six segments fall outside 
+windSegments0 %>%
+  filter(!between(Longitude, min(lon.wind), max(lon.wind)) | 
+           !between(Latitude, min(lat.wind), max(lat.wind)))
+```
+
+
