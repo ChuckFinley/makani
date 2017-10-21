@@ -164,7 +164,8 @@ foo <- foreach(segId = plot.segs) %do% {
 ```
 
 Annotate segments with flap ratio
-```{r addFlapRatio}
+Note: This seems to make RMarkdown hang. I'm leaving the code in here but it doesn't run. I run it separately and save the results to AccSegments.RData.
+```{r addFlapRatio, eval = FALSE}
 # Functionality for calculating flap ratio per segment based on sd(DynZ) threshold
 calculateFlapRatio <- function(segID) {
   acc.data <- get.acc(segID) %>%
@@ -193,6 +194,8 @@ save(accSegments, file = '../data/out/TransitSegments/AccSegments.RData')
 
 Flap ratio diagnostic plots
 ```{r viewFlapRatio}
+load('../data/out/TransitSegments/AccSegments.RData')
+
 ggplot(accSegments, aes(x = FlapRatio)) +
   geom_histogram(binwidth = 0.05,
                  boundary = 0) +
