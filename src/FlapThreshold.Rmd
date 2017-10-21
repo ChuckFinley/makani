@@ -1,0 +1,213 @@
+---
+title: "Flap Threshold"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'FlapThreshold.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
+output: html_document
+---
+
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(
+	message = FALSE,
+	warning = FALSE,
+	cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(foreach)
+library(RSQLite)
+library(parallel)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+acceleration_db <- tbl(MHI_db, 'SegmentACC')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+
+load('../data/out/TransitSegments/Segments.RData')
+load('../data/out/TransitSegments/ValidSegments.RData')
+```
+
+Utility functions
+```{r utility}
+# This function retrieves segment acceleration data from database
+get.acc <- function(segID) {
+  # Knitting doesn't play nice with external database connections, so this
+  #   is the workaround.
+  this.acc_db <- tbl(src_sqlite('../data/MHI_GPS.sqlite'), 'SegmentACC')
+  this.acc_db %>%
+    filter(SegmentID == segID) %>%
+    collect(n = Inf) %>%
+    transmute(DeployID,
+              SegmentID,
+              BurstID,
+              ACCTimestampUTC = as.POSIXct(ACCTimestampUTC,
+                                           tz = 'UTC',
+                                           origin = POSIX.origin),
+              X, Y, Z,
+              DynX, DynY, DynZ)
+}
+```
+
+Distribution of Heave Standard Deviation
+Sample 1% of the segments, calculate the standard deviation of dynamic heave in 0.5s (10 points) windows. Plot the histogram. Repeat 10 times. Ideally there should be two peaks: a lower one for gliding and a higher one for flapping. If the troughs are in the same place then that's the threshold.
+```{r distHeaveSd, warning = FALSE}
+# Calculate standard deviation of dynamic heave over 10 point (0.5s) window
+sd.win <- 10
+
+# Make ten plots and suppress the output of times
+foo <- times(10) %do% {
+  # Each plot samples 1% of the segments
+  p <- foreach(seg = sample_frac(validSegments, 0.01)$SegmentID,
+          .combine = rbind) %do% {
+    get.acc(seg) %>%
+      # Calculate the sd of DynZ over a sliding window
+      mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
+  } %>%
+    # Create the histogram
+    ggplot(aes(x = SdDynZ)) +
+    geom_histogram(binwidth = 0.2, boundary = 0) +
+    labs(x = 'Standard Deviation of Dynamic Heave (m/s^2)',
+         y = 'Count of Acceleration Points',
+         title = 'Distribution of Standard Deviation of Dynamic Heave\nIndicates a Threshold at 5m/s^2') +
+    xlim(0, 15)
+  # ggplot results must be explicitly printed in foreach loops (including times)
+  print(p)
+}
+```
+
+From a visual inspection of the distribution of the standard deviation of dynamic heave I am setting the flap/glide threshold at 5m/s^2.
+
+This chunk has functions for visualizing acceleration by segment.
+
+```{r vizAccFun}
+flap.thresh <- 5
+
+# This function plots the heave acceleration bursts from a segment. Color codes 
+#   flapping points based on a sliding window of standard deviance and a threshold.
+plot.acc <- function(segID) {
+  # Retrieve segment acceleration data from database
+  # Calculate variance in dynamic heave
+  acc.data <- get.acc(segID) %>%
+    mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA),
+           FlapGlide = factor(ifelse(SdDynZ >= flap.thresh, 'Flap', 'Glide')))
+  
+  # Filter segment data
+  seg.data <- filter(validSegments, SegmentID == segID)
+  
+  # Plot acceleration data faceted by burst
+  ggplot(acc.data, 
+         # Put the acceleration timestamp on the x axis and the dynamic heave on the y
+         aes(x = ACCTimestampUTC, y = DynZ)) + 
+    # Plot acceleration with both a line and points
+    geom_line() + 
+    # Points are color coded by flap/glide
+    geom_point(aes(color = FlapGlide),
+               size = 0.5) + 
+    # Facet by burst. Free the x scale so each burst takes up its facet completely.
+    facet_wrap(~ BurstID, scales = 'free_x') +
+    # Add axis titles, plot title, and a caption with DeployID and segment start time
+    labs(x = 'Time (seconds since beginning of burst)', 
+         y = 'Dynamic Heave (m/s^2)',
+         title = sprintf('Dynamic Heave Along Segment %i', seg.data$SegmentID),
+         caption = sprintf('DeployID %i, segment beginning %s',
+                           seg.data$DeployID,
+                           # %F %R is y-m-d h:m
+                           format(seg.data$Start, '%F %R'))) +
+    # Burst x-axis labels (time) should be seconds since beginning of the burst. So
+    #  we set the x-axis breaks to 1 second and seq_along the breaks to get the labels.
+    scale_x_datetime(breaks = function(lim) seq(lim[1], lim[2], by = 1),
+                     labels = function(breaks) seq_along(breaks) - 1) +
+    # Set the theme to black and white
+    theme_bw(base_size = 12) +
+    # Remove the legend (use the figure caption for flap/glide coloring)
+    theme(legend.position = 'none',
+          # Shrink the axis labels
+          axis.text = element_text(size = 9),
+          # Increase the caption size
+          plot.caption = element_text(size = 14),
+          # Remove the facet strips
+          strip.background = element_blank(),
+          strip.text = element_blank())
+}
+```
+
+Plot the acceleration traces for a subset of the segments. Randomly select 100 segments, plot their acceleration traces, and save to file. Then randomly select 5 more, plot, and print to the report. (foo is used to suppress output of foreach)
+```{r plotAcc1}
+set.seed(1136)
+plot.segs <- sample(validSegments$SegmentID, 100, replace = FALSE)
+foo <- foreach(segId = plot.segs) %do% {
+  p <- plot.acc(segId)
+  plot.path <- '../analysis/figures/SegmentAcceleration/'
+  plot.file <- file.path(plot.path, sprintf('%i.png', segId))
+  ggsave(plot.file, p, width = 15, height = 8.8, units = 'in')
+}
+```
+
+```{r plotAcc2}
+set.seed(1546)
+plot.segs <- sample(validSegments$SegmentID, 5, replace = FALSE)
+foo <- foreach(segId = plot.segs) %do% {
+  p <- plot.acc(segId)
+  print(p)
+}
+```
+
+Annotate segments with flap ratio
+Note: This seems to make RMarkdown hang. I'm leaving the code in here but it doesn't run. I run it separately and save the results to AccSegments.RData.
+```{r addFlapRatio, eval = FALSE}
+# Functionality for calculating flap ratio per segment based on sd(DynZ) threshold
+calculateFlapRatio <- function(segID) {
+  acc.data <- get.acc(segID) %>%
+    mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
+  sum(acc.data$SdDynZ > flap.thresh, na.rm = TRUE) / nrow(acc.data)
+}
+
+# Let's go parallel
+nCores <- detectCores() - 1
+flapCl <- makeCluster(nCores)
+clusterExport(flapCl, c('get.acc', 'POSIX.origin', 'sd.win', 'flap.thresh'))
+foo <- clusterEvalQ(flapCl, {
+  library(dplyr)
+  library(zoo)
+})
+  
+# Annotate validSegments with flap ratio
+accSegments <- validSegments %>%
+  mutate(FlapRatio = parSapply(flapCl, SegmentID, calculateFlapRatio))
+
+stopCluster(flapCl)
+
+# Save results to file
+save(accSegments, file = '../data/out/TransitSegments/AccSegments.RData')
+```
+
+Flap ratio diagnostic plots
+```{r viewFlapRatio}
+load('../data/out/TransitSegments/AccSegments.RData')
+
+ggplot(accSegments, aes(x = FlapRatio)) +
+  geom_histogram(binwidth = 0.05,
+                 boundary = 0) +
+  labs(x = 'Flap Ratio',
+       y = 'Count of Segments',
+       title = 'Distribution of Flap Ratio')
+
+ggplot(accSegments,
+       aes(x = Leg,
+           y = FlapRatio)) +
+  geom_boxplot() +
+  labs(x = 'Segment Leg',
+       y = 'Flap Ratio',
+       title = 'Flap Ratios Are Higher For Outbound Segments')
+```
