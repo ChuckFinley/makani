@@ -171,6 +171,8 @@ windSegments <- windSegments0 %>%
   na.omit %>%
   mutate(Tailwind = project(bearing, uWind, vWind),
          Crosswind = reject(uWind, vWind, Tailwind))
+
+save(windSegments, file = '../data/out/WindSegments.RData')
 ```
 
 A few plots to visually validate the projection/rejection calculations

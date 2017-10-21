@@ -390,7 +390,9 @@ windSegments &lt;- windSegments0 %&gt;%
   # Drop the six segments outside the model's spatial range
   na.omit %&gt;%
   mutate(Tailwind = project(bearing, uWind, vWind),
-         Crosswind = reject(uWind, vWind, Tailwind))</code></pre>
+         Crosswind = reject(uWind, vWind, Tailwind))
+
+save(windSegments, file = '../data/out/WindSegments.RData')</code></pre>
 <p>A few plots to visually validate the projection/rejection calculations</p>
 <pre class="r"><code># Verify that tailwind/crosswind magnitude equals wind magnitude
 # The histogram of mag([U C]) - mag([T C]) should have a narrow range
