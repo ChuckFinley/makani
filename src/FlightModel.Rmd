@@ -3,12 +3,12 @@ title: "Flight Model"
 author: "Max Czapanskiy"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 knit: (function(inputFile, encoding) { 
-  out_dir <- '../analysis/reports';
-  out_file <- file.path(dirname(inputFile), out_dir, 'FlightModel.html');
-  rmarkdown::render(inputFile,
-                    encoding = encoding, 
-                    output_file = out_file);
-})
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'WindProjection.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
 output: html_document
 ---
   
@@ -20,14 +20,13 @@ knitr::opts_chunk$set(
 )
 library(dplyr)
 library(lubridate)
-library(zoo)
+library(tidyr)
 library(ggplot2)
 library(foreach)
 library(RSQLite)
-library(parallel)
-library(RNetCDF)
-library(oce)
+library(doParallel)
 library(iterators)
+library(glmmADMB)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -42,4 +41,177 @@ load('../data/out/TransitSegments/Segments.RData')
 load('../data/out/TransitSegments/ValidSegments.RData')
 load('../data/out/TransitSegments/AccSegments.RData')
 load('../data/out/TransitSegments/WindSegments.RData')
+```
+
+How do seabirds modulate flight behavior in response to wind? This report seeks to answer that question by modeling the flap ratio as a function of tail- (T), crosswinds (C), and trip leg (T) with BirdID as a random effect.
+
+First up: segment sampling. Randomly select both an outbound and inbound segment from each eligible trip (i.e. not trips with just outbound or inbound segments).
+```{r sample_segments}
+# Which trips have both outbound and inbound legs?
+bothLegs <- windSegments %>%
+  group_by(DeployID, TripID, Leg) %>%
+  summarize(N = n()) %>%
+  ungroup %>%
+  spread(Leg, N) %>%
+  mutate(Both = !is.na(Inbound) & !is.na(Outbound)) %>%
+  filter(Both)
+
+bothLegs %>%
+  ggplot(aes(x = DeployID)) +
+  geom_bar()
+
+set.seed(211)
+segSample <- windSegments %>%
+  semi_join(bothLegs, by = 'TripID') %>%
+  group_by(TripID, Leg) %>%
+  sample_n(1) %>%
+  ungroup
+
+save(segSample, file = '../data/out/TransitSegments/SegSample.RData')
+```
+
+Let's look at the distribution of segments across deployments, time, and location.
+```{r view_segments}
+# Across deployments
+ggplot(segSample, aes(x = DeployID)) +
+  geom_bar() +
+  labs(title = 'Segment sample: 14-48 segments from 12 trips')
+
+# Through time
+ggplot(segSample, aes(x = Start, y = DeployID)) +
+  geom_point() +
+  labs(x = 'Date of Segment',
+       title = 'Distribution of segments between May 28 and July 17')
+
+# In space
+## TODO
+## Make a map of Hawaii with points for the segments, color-coded by time.
+```
+
+Now a look at the response varible (FlapRatio) in response to the predictor variables (T, C, L)
+```{r plot_vars}
+# F ~ T by L
+ggplot(segSample, aes(x = Tailwind, y = FlapRatio, color = Leg)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = FALSE) +
+  labs(x = 'Tailwind (m/s)',
+       y = 'Flap Ratio',
+       title = 'Flap ratio decreases with tailwind speed') +
+  theme(legend.position = 'bottom')
+
+# F ~ C by L
+ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = FALSE) +
+  labs(x = 'Crosswind (m/s)',
+       y = 'Flap Ratio',
+       title = 'Flap ratio relationship to tailwind speed varies by leg') +
+  theme(legend.position = 'bottom')
+
+# F ~ T:C by L
+# Twidth <- 2
+# Cwidth <- 1
+# expand.grid(Tbin = seq(-10, 10, by = Twidth),
+#             Cbin = seq(0, 10, by = Cwidth)) %>%
+#   mutate(meanFlap = mapply(function(t, c) {
+#     result <- filter(segSample, 
+#                      Tailwind >= t,
+#                      Tailwind < t + Twidth,
+#                      Crosswind >= c,
+#                      Crosswind < c + Cwidth) %>%
+#       summarize(meanFlap = mean(FlapRatio))
+#     result$meanFlap
+#   }, Tbin, Cbin)) %>% View
+#   ggplot(aes(x = Tbin, y = Cbin, z = meanFlap)) +
+#   geom_tile()
+## TODO: how do a interpolate a 2d surface to F ~ T:C?
+```
+
+## Determine random effects structure
+Starting with the maximal fixed effects model (F ~ T * C * L) rank the potential random effects structures (where TripID < DeployID) by AIC
+
+```{r random_effects}
+# List to store random effects model formulae
+re.form <- list()
+# Formula of maximal fixed effects
+fe.max <- FlapRatio ~ Tailwind * Crosswind * Leg
+
+# Intercepts
+re.form[[1]] <- ~ . + (1|DeployID)
+re.form[[2]] <- ~ . + (1|TripID)
+
+# Slopes by DeployID
+re.form[[3]] <- ~ . +  (Tailwind|DeployID)
+re.form[[4]] <- ~ . + (Crosswind|DeployID)
+re.form[[5]] <- ~ . + (Leg|DeployID)
+
+# Slopes by TripID
+re.form[[6]] <- ~ . + (Tailwind|TripID)
+re.form[[7]] <- ~ . + (Crosswind|TripID)
+re.form[[8]] <- ~ . + (Leg|TripID)
+
+# Multiple slopes by DeployID
+re.form[[9]] <- ~ . + (Tailwind|DeployID) + (Crosswind|DeployID)
+re.form[[10]] <- ~ . + (Tailwind|DeployID) + (Leg|DeployID)
+re.form[[11]] <- ~ . + (Crosswind|DeployID) + (Leg|DeployID)
+
+# Multiple slopes by TripID
+re.form[[12]] <- ~ . + (Tailwind|DeployID) + (Crosswind|TripID)
+re.form[[13]] <- ~ . + (Tailwind|TripID) + (Leg|TripID)
+re.form[[14]] <- ~ . + (Crosswind|TripID) + (Leg|TripID)
+
+# Interaction by DeployID
+re.form[[15]] <- ~ . + (Tailwind:Crosswind|DeployID)
+re.form[[16]] <- ~ . + (Tailwind:Leg|DeployID)
+re.form[[17]] <- ~ . + (Crosswind:Leg|DeployID)
+
+# Interaction by TripID
+re.form[[18]] <- ~ . + (Tailwind:Crosswind|TripID)
+re.form[[19]] <- ~ . + (Tailwind:Leg|TripID)
+re.form[[20]] <- ~ . + (Crosswind:Leg|TripID)
+
+# Function for converting formulae to strings
+char.formula <- function(f) {
+  mod.parts <- as.character(f) %>%
+    gsub('FlapRatio', 'F', .) %>%
+    gsub('Tailwind', 'T', .) %>%
+    gsub('Crosswind', 'C', .) %>%
+    gsub('Leg', 'L', .) %>%
+    gsub('DeployID', 'B', .) %>%
+    gsub('TripID', 'R', .)
+  paste(mod.parts, collapse = ' ')
+}
+
+# Fit models
+modCl <- makeCluster(detectCores() - 1, type = 'FORK')
+registerDoParallel(modCl)
+re.mod <- foreach(f = re.form) %dopar% {
+  mod.formula <- update.formula(fe.max, f)
+  tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
+}
+stopCluster(modCl)
+
+# Summarize models by AIC
+re.summ <- foreach(f = re.form,
+                   m = re.mod, 
+                   .combine = rbind) %do% {
+  re.formula <- char.formula(f)
+  if(is.null(m)) {
+    data.frame(Formula = re.formula,
+               AIC = NA)
+  } else {
+    data.frame(Formula = re.formula,
+               AIC = AIC(m))
+  }
+} %>%
+  mutate(dAIC = min(AIC, na.rm = TRUE) - AIC) %>%
+  arrange(dAIC)
+
+## TODO: calculate AIC weight
+
+# Print table
+re.summ
+
+# Save random effects models
+save(re.mod, file = '../data/out/Models/REmodels.RData')
 ```
