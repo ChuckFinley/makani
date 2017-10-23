@@ -179,7 +179,10 @@ char.formula <- function(f) {
     gsub('Leg', 'L', .) %>%
     gsub('DeployID', 'B', .) %>%
     gsub('TripID', 'R', .)
-  paste(mod.parts, collapse = ' ')
+  if(length(mod.parts) == 2)
+    paste(mod.parts, collapse = ' ')
+  else
+    paste(mod.parts[1], mod.parts)
 }
 
 # Fit models
@@ -204,14 +207,90 @@ re.summ <- foreach(f = re.form,
                AIC = AIC(m))
   }
 } %>%
-  mutate(dAIC = min(AIC, na.rm = TRUE) - AIC) %>%
+  mutate(dAIC = AIC - min(AIC, na.rm = TRUE)) %>%
   arrange(dAIC)
 
 ## TODO: calculate AIC weight
 
-# Print table
-re.summ
-
 # Save random effects models
 save(re.mod, file = '../data/out/Models/REmodels.RData')
+
+# Print table
+re.summ
 ```
+
+Based on AIC the top ranked random effects structure is (C:L|B). (L|B) and (T:C|B) had delta AIC of 7.930 and 8.708.
+
+## Determine fixed effects structure
+Using the optimal random effects structure, determine best fitting fixed effects structure
+```{r mixed_effects}
+# List to store fixed effects model formulae
+me.form <- list()
+# Formulae of optimal random effects structures
+re.optim1 <- FlapRatio ~ (Crosswind:Leg|DeployID)
+re.optim2 <- FlapRatio ~ (Leg|DeployID)
+re.optim3 <- FlapRatio ~ (Tailwind:Crosswind|DeployID)
+
+# Mixed effects to test with (C:L|B)
+me.form[[1]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim1)
+me.form[[2]] <- list(~ . + Crosswind * Leg + Tailwind, re.optim1)
+me.form[[3]] <- list(~ . + Crosswind * Leg, re.optim1)
+
+# Mixed effects to test with (L|B)
+me.form[[4]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim2)
+me.form[[5]] <- list(~ . + Tailwind * Crosswind + Leg, re.optim2)
+me.form[[5]] <- list(~ . + Tailwind + Crosswind * Leg, re.optim2)
+me.form[[6]] <- list(~ . + Tailwind * Leg + Crosswind, re.optim2)
+me.form[[7]] <- list(~ . + Tailwind + Crosswind + Leg, re.optim2)
+me.form[[8]] <- list(~ . + Tailwind * Leg, re.optim2)
+me.form[[9]] <- list(~ . + Tailwind + Leg, re.optim2)
+me.form[[10]] <- list(~ . + Crosswind * Leg, re.optim2)
+me.form[[11]] <- list(~ . + Crosswind + Leg, re.optim2)
+me.form[[12]] <- list(~ . + Leg, re.optim2)
+
+# Mixed effects to test with (T:C|B)
+me.form[[13]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim3)
+me.form[[14]] <- list(~ . + Tailwind * Crosswind + Leg, re.optim3)
+me.form[[15]] <- list(~ . + Tailwind * Crosswind, re.optim3)
+
+# Fit models
+modCl <- makeCluster(detectCores() - 1, type = 'FORK')
+registerDoParallel(modCl)
+me.mod <- foreach(f = me.form,
+                  i = seq_along(re.form)) %dopar% {
+  # Update 
+  mod.formula <- update.formula(f[[2]], f[[1]])
+  tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
+}
+stopCluster(modCl)
+
+# Summarize models by AIC
+me.summ <- foreach(f = me.form,
+                   m = me.mod, 
+                   .combine = rbind) %do% {
+  fe.formula <- char.formula(f[[1]])
+  re.formula <- char.formula(f[[2]])
+  
+  if(is.null(m)) {
+    data.frame(FixedEffects = fe.formula,
+               RandomEffects = re.formula,
+               AIC = NA)
+  } else {
+    data.frame(FixedEffects = fe.formula,
+               RandomEffects = re.formula,
+               AIC = AIC(m))
+  }
+} %>%
+  mutate(dAIC = AIC - min(AIC, na.rm = TRUE)) %>%
+  arrange(dAIC)
+
+## TODO: calculate AIC weight
+
+# Save mixed effects models
+save(me.mod, file = '../data/out/Models/MEmodels.RData')
+
+# Print table
+me.summ
+```
+
+The highest ranking mixed effects model is F ~ T * C * L + (C:L | B).
