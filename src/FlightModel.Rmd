@@ -302,12 +302,42 @@ me.summ <- foreach(f = me.form,
 me.summ
 ```
 
-The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). Let's have a look at the residuals.
+The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). 
 
+## Model diagnostics
 ```{r mod_summ}
 flight.model <- me.mod[[1]]
 summary(flight.model)
-## TODO: use coefplot2 to plot mixed effects coefficients
-## TODO: histogram of residuals
-## TODO: residuals vs predicted
+
+# Histogram of residuals
+data.frame(residuals = residuals(flight.model)) %>%
+  ggplot(aes(x = residuals)) +
+  geom_histogram(binwidth = 0.1) +
+  geom_vline(xintercept = 0, color = 'red') +
+  labs(title = 'Distribution of residuals')
+
+# Residuals vs fitted
+data.frame(residuals = residuals(flight.model),
+           fitted = fitted(flight.model)) %>%
+  ggplot(aes(x = fitted, y = residuals)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = 'Residuals vs fitted values')
+
+# Random effect coefficient distributions
+flight.model.ranef <- ranef(flight.model) %>%
+  data.frame
+colnames(flight.model.ranef) <- c('Intercept', 'CrossIn', 'CrossOut')
+flight.model.ranef %>%
+  gather(RandomEffect, Value, Intercept:CrossOut) %>%
+  group_by(RandomEffect) %>%
+  summarize(Lower = mean(Value) - sd(Value),
+            Mean = mean(Value),
+            Upper = mean(Value) + sd(Value)) %>%
+  ggplot(aes(y = RandomEffect)) +
+  geom_segment(aes(x = Lower, xend = Upper, yend = RandomEffect)) +
+  geom_point(aes(x = Mean)) +
+  labs(x = 'Regression estimates',
+       y = 'Random Effect',
+       title = 'Range of random effect coefficients')
 ```
