@@ -15,8 +15,7 @@ output: html_document
 ```{r setup, message = FALSE}
 knitr::opts_chunk$set(
   message = FALSE,
-  warning = FALSE,
-  cache = TRUE
+  warning = FALSE
 )
 library(dplyr)
 library(lubridate)
@@ -305,6 +304,10 @@ me.summ
 
 The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). Let's have a look at the residuals.
 
-```{r mod_resid}
-
+```{r mod_summ}
+flight.model <- me.mod[[1]]
+summary(flight.model)
+## TODO: use coefplot2 to plot mixed effects coefficients
+## TODO: histogram of residuals
+## TODO: residuals vs predicted
 ```

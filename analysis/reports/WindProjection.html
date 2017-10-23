@@ -125,8 +125,7 @@ $(document).ready(function () {
 
 <pre class="r"><code>knitr::opts_chunk$set(
   message = FALSE,
-  warning = FALSE,
-  cache = TRUE
+  warning = FALSE
 )
 library(dplyr)
 library(lubridate)
@@ -422,6 +421,41 @@ me.summ</code></pre>
 ## 14     ~ . + C + L     ~ (L | B) -613.190 31.948
 ## 15         ~ . + L     ~ (L | B) -608.582 36.556</code></pre>
 <p>The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). Let’s have a look at the residuals.</p>
+<pre class="r"><code>flight.model &lt;- me.mod[[1]]
+summary(flight.model)</code></pre>
+<pre><code>## 
+## Call:
+## glmmadmb(formula = mod.formula, data = segSample, family = &quot;beta&quot;)
+## 
+## AIC: -645.1 
+## 
+## Coefficients:
+##                                Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                    -0.55583    0.11444   -4.86  1.2e-06 ***
+## Tailwind                       -0.05832    0.01253   -4.65  3.2e-06 ***
+## Crosswind                      -0.00576    0.01963   -0.29   0.7693    
+## LegOutbound                    -0.04433    0.13648   -0.32   0.7453    
+## Tailwind:Crosswind              0.00834    0.00280    2.98   0.0029 ** 
+## Tailwind:LegOutbound            0.03349    0.01873    1.79   0.0737 .  
+## Crosswind:LegOutbound           0.01781    0.02872    0.62   0.5352    
+## Tailwind:Crosswind:LegOutbound -0.00828    0.00416   -1.99   0.0464 *  
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Number of observations: total=338, DeployID=12 
+## Random effect variance(s):
+## Group=DeployID
+##                        Variance  StdDev
+## (Intercept)           0.0426340 0.20648
+## Crosswind:LegInbound  0.0008801 0.02967
+## Crosswind:LegOutbound 0.0012322 0.03510
+## 
+## Beta dispersion parameter: 29.961 (std. err.: 2.3771)
+## 
+## Log-likelihood: 334.569</code></pre>
+<pre class="r"><code>## TODO: use coefplot2 to plot mixed effects coefficients
+## TODO: histogram of residuals
+## TODO: residuals vs predicted</code></pre>
 </div>
 
 
