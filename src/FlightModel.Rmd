@@ -130,7 +130,7 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
 ## Determine random effects structure
 Starting with the maximal fixed effects model (F ~ T * C * L) rank the potential random effects structures (where TripID < DeployID) by AIC
 
-```{r random_effects}
+```{r setup_random_effects}
 # List to store random effects model formulae
 re.form <- list()
 # Formula of maximal fixed effects
@@ -182,9 +182,11 @@ char.formula <- function(f) {
   if(length(mod.parts) == 2)
     paste(mod.parts, collapse = ' ')
   else
-    paste(mod.parts[1], mod.parts)
+    paste(mod.parts[1], mod.parts[3])
 }
+```
 
+```{r fit_random_effects, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
@@ -194,6 +196,12 @@ re.mod <- foreach(f = re.form) %dopar% {
 }
 stopCluster(modCl)
 
+# Save random effects models
+save(re.mod, file = '../data/out/Models/REmodels.RData')
+```
+
+```{r summ_random_effects}
+load('../data/out/Models/REmodels.RData')
 # Summarize models by AIC
 re.summ <- foreach(f = re.form,
                    m = re.mod, 
@@ -212,9 +220,6 @@ re.summ <- foreach(f = re.form,
 
 ## TODO: calculate AIC weight
 
-# Save random effects models
-save(re.mod, file = '../data/out/Models/REmodels.RData')
-
 # Print table
 re.summ
 ```
@@ -223,7 +228,7 @@ Based on AIC the top ranked random effects structure is (C:L|B). (L|B) and (T:C|
 
 ## Determine fixed effects structure
 Using the optimal random effects structure, determine best fitting fixed effects structure
-```{r mixed_effects}
+```{r setup_mixed_effects}
 # List to store fixed effects model formulae
 me.form <- list()
 # Formulae of optimal random effects structures
@@ -252,7 +257,9 @@ me.form[[12]] <- list(~ . + Leg, re.optim2)
 me.form[[13]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim3)
 me.form[[14]] <- list(~ . + Tailwind * Crosswind + Leg, re.optim3)
 me.form[[15]] <- list(~ . + Tailwind * Crosswind, re.optim3)
+```
 
+```{r fit_mixed_effects, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
@@ -264,6 +271,12 @@ me.mod <- foreach(f = me.form,
 }
 stopCluster(modCl)
 
+# Save mixed effects models
+save(me.mod, file = '../data/out/Models/MEmodels.RData')
+```
+
+```{r summ_mixed_effects}
+load('../data/out/Models/MEmodels.RData')
 # Summarize models by AIC
 me.summ <- foreach(f = me.form,
                    m = me.mod, 
@@ -286,11 +299,12 @@ me.summ <- foreach(f = me.form,
 
 ## TODO: calculate AIC weight
 
-# Save mixed effects models
-save(me.mod, file = '../data/out/Models/MEmodels.RData')
-
 # Print table
 me.summ
 ```
 
-The highest ranking mixed effects model is F ~ T * C * L + (C:L | B).
+The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). Let's have a look at the residuals.
+
+```{r mod_resid}
+
+```
