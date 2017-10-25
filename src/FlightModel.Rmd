@@ -55,10 +55,6 @@ bothLegs <- windSegments %>%
   mutate(Both = !is.na(Inbound) & !is.na(Outbound)) %>%
   filter(Both)
 
-bothLegs %>%
-  ggplot(aes(x = DeployID)) +
-  geom_bar()
-
 set.seed(211)
 segSample <- windSegments %>%
   semi_join(bothLegs, by = 'TripID') %>%
@@ -104,7 +100,7 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
   geom_smooth(method = 'lm', se = FALSE) +
   labs(x = 'Crosswind (m/s)',
        y = 'Flap Ratio',
-       title = 'Flap ratio relationship to tailwind speed varies by leg') +
+       title = 'Flap ratio relationship to crosswind speed varies by leg') +
   theme(legend.position = 'bottom')
 
 # F ~ T:C by L
@@ -274,7 +270,7 @@ stopCluster(modCl)
 save(me.mod, file = '../data/out/Models/MEmodels.RData')
 ```
 
-```{r summ_mixed_effects}
+```{r summ_mixed_effects, fig.width=8, fig.height=8}
 load('../data/out/Models/MEmodels.RData')
 # Summarize models by AIC
 me.summ <- foreach(f = me.form,
@@ -300,6 +296,48 @@ me.summ <- foreach(f = me.form,
 
 # Print table
 me.summ
+
+# Compare actual/predicted distributions
+foreach(f = me.form,
+        m = me.mod,
+        .combine = rbind) %do% {
+  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
+             mod.fitted = m$fitted)
+} %>%
+  ggplot(aes(x = mod.fitted)) +
+  geom_density(color = '#AA0000') +
+  facet_wrap(~ mod.lbl) +
+  geom_density(data = me.mod[[1]]$frame, 
+               aes(x = FlapRatio),
+               fill = '#0000AA',
+               alpha = 0.5) +
+  labs(x = 'Flap Ratio',
+       y = 'Density Function',
+       title = 'Modeled vs. Actual Flap Ratio Distribution',
+       caption = 'Blue fill = actual, Red line = fitted')
+
+# Compare resiudal distributions
+foreach(f = me.form,
+        m = me.mod,
+        .combine = rbind) %do% {
+  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
+             mod.resid = m$residuals)
+} %>%
+  ggplot(aes(x = mod.resid)) +
+  geom_density() +
+  facet_wrap(~ mod.lbl)
+
+# QQ plots
+foreach(f = me.form,
+        m = me.mod,
+        .combine = rbind) %do% {
+  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
+             mod.resid = m$residuals)
+} %>%
+  ggplot(aes(sample = mod.resid / sd(mod.resid))) +
+  stat_qq() +
+  geom_abline(slope = 1, intercept = 0, color = 'darkred') +
+  facet_wrap(~ mod.lbl)
 ```
 
 The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). 
@@ -340,4 +378,17 @@ flight.model.ranef %>%
   labs(x = 'Regression estimates',
        y = 'Random Effect',
        title = 'Range of random effect coefficients')
+```
+
+## Model predictions
+```{r mod.pred}
+cardinality <- 15
+model.predictions <- expand.grid(Tailwind = seq(-15, 15, length.out = cardinality),
+                                 Crosswind = seq(0, 10, length.out = cardinality),
+                                 Leg = c('Outbound', 'Inbound')) %>%
+  mutate(FlapRatio = predict(flight.model, .))
+
+ggplot(model.predictions, aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
+  geom_tile() +
+  facet_wrap(~ Leg)
 ```
