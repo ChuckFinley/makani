@@ -90,7 +90,7 @@ Now a look at the response varible (FlapRatio) in response to the predictor vari
 # F ~ T by L
 ggplot(segSample, aes(x = Tailwind, y = FlapRatio, color = Leg)) +
   geom_point() +
-  geom_smooth(method = 'lm', se = FALSE) +
+  geom_smooth(method = 'loess') +
   labs(x = 'Tailwind (m/s)',
        y = 'Flap Ratio',
        title = 'Flap ratio decreases with tailwind speed') +
@@ -99,7 +99,7 @@ ggplot(segSample, aes(x = Tailwind, y = FlapRatio, color = Leg)) +
 # F ~ C by L
 ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
   geom_point() +
-  geom_smooth(method = 'lm', se = FALSE) +
+  geom_smooth(method = 'loess') +
   labs(x = 'Crosswind (m/s)',
        y = 'Flap Ratio',
        title = 'Flap ratio relationship to crosswind speed varies by leg') +
