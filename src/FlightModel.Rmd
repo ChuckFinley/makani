@@ -42,6 +42,8 @@ load('../data/out/TransitSegments/Segments.RData')
 load('../data/out/TransitSegments/ValidSegments.RData')
 load('../data/out/TransitSegments/AccSegments.RData')
 load('../data/out/TransitSegments/WindSegments.RData')
+
+select <- dplyr::select
 ```
 
 How do seabirds modulate flight behavior in response to wind? This report seeks to answer that question by modeling the flap ratio as a function of tail- (T), crosswinds (C), and trip leg (T) with BirdID as a random effect.
@@ -325,12 +327,20 @@ me.summ <- foreach(f = me.form,
 kable(me.summ, digits = 3)
 
 # Compare actual/predicted distributions
+mod.rank <- foreach(f = me.form,
+                    m = me.mod,
+                    .combine = rbind) %do% {
+  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
+             mod.aic = AIC(m))
+} %>%
+  mutate(mod.rank = rank(mod.aic))
 foreach(f = me.form,
         m = me.mod,
         .combine = rbind) %do% {
   data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
              mod.fitted = m$fitted)
 } %>%
+  left_join(mod.rank) %>%
   ggplot(aes(x = mod.fitted)) +
   geom_density(color = '#AA0000') +
   facet_wrap(~ mod.lbl) +
@@ -338,21 +348,28 @@ foreach(f = me.form,
                aes(x = FlapRatio),
                fill = '#0000AA',
                alpha = 0.5) +
+  geom_text(aes(label = mod.rank), x = 0.1, y = 5) +
   labs(x = 'Flap Ratio',
        y = 'Density Function',
-       title = 'Modeled vs. Actual Flap Ratio Distribution',
-       caption = 'Blue fill = actual, Red line = fitted')
+       title = 'Fiitted vs. Actual Flap Ratio Distribution',
+       caption = 'Blue fill = actual, red line = fitted, number = rank')
 
-# Compare resiudal distributions
+# Residuals vs fitted
 foreach(f = me.form,
         m = me.mod,
         .combine = rbind) %do% {
   data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
-             mod.resid = m$residuals)
+             mod.resid = m$residuals,
+             mod.fit = m$fitted)
 } %>%
-  ggplot(aes(x = mod.resid)) +
-  geom_density() +
-  facet_wrap(~ mod.lbl)
+  left_join(mod.rank) %>%
+  ggplot(aes(x = mod.fit, y = mod.resid)) +
+  geom_point() +
+  geom_smooth() +
+  geom_text(aes(label = mod.rank), x = 0.2, y = -0.25) +
+  facet_wrap(~ mod.lbl) +
+  labs(title = 'Residuals vs fitted values',
+       caption = 'Number = rank')
 
 # QQ plots
 foreach(f = me.form,
@@ -361,13 +378,16 @@ foreach(f = me.form,
   data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
              mod.resid = m$residuals)
 } %>%
+  left_join(mod.rank) %>%
   ggplot(aes(sample = mod.resid / sd(mod.resid))) +
   stat_qq() +
   geom_abline(slope = 1, intercept = 0, color = 'darkred') +
-  facet_wrap(~ mod.lbl)
+  facet_wrap(~ mod.lbl) +
+  geom_text(aes(label = mod.rank), x = -2, y = 2) +
+  labs(title = 'Residual Q-Q plots')
 ```
 
-The highest ranking mixed effects model is F ~ T * C * L + (C:L | B). 
+The highest ranking mixed effects model is `F ~ T * C * L + (C:L | B)`. None of the diagnostic plots indicate an issue with that model nor does another model appear to outperform it.
 
 ## Model diagnostics
 ```{r mod_summ}
