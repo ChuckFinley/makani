@@ -90,8 +90,8 @@ LonExtent <- c(min(ColLon, segSample$Longitude), max(ColLon, segSample$Longitude
 LatExtent <- c(min(ColLat, segSample$Latitude), max(ColLat, segSample$Latitude))
 hi_shp <- readOGR('../data/coastline/ne_10m_coastline/', 'ne_10m_coastline')
 hi_df <- fortify(hi_shp) %>%
-  filter(long %between% LonExtent,
-         lat %between% LatExtent)
+  filter(between(long, LonExtent[1], LonExtent[2]),
+         between(lat, LatExtent[1], LatExtent[2]))
 ggplot(segSample) +
   geom_path(data = hi_df, aes(x = long, y = lat, group = group)) +
   geom_point(aes(x = Longitude, y = Latitude, color = Start)) +
@@ -182,7 +182,7 @@ re.form[[5]] <- ~ . + (Tailwind|DeployID) + (Crosswind|DeployID)
 # Slopes by TripID
 re.form[[6]] <- ~ . + (Tailwind|TripID)
 re.form[[7]] <- ~ . + (Crosswind|TripID)
-re.form[[8]] <- ~ . + (Tailwind|DeployID) + (Crosswind|TripID)
+re.form[[8]] <- ~ . + (Tailwind|TripID) + (Crosswind|TripID)
 
 # Interaction by DeployID and TripID
 re.form[[9]] <- ~ . + (Tailwind:Crosswind|DeployID)
