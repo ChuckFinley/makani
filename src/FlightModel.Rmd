@@ -428,14 +428,46 @@ flight.model.ranef %>%
 ```
 
 ## Model predictions
-```{r mod.pred}
+```{r mod.pred, eval = FALSE}
 cardinality <- 15
+predict.fun <- function(Tailwind, Crosswind, Leg) {
+  leg <- ifelse(Leg == 'Outbound', 1, 0)
+  model.coef <- c(coef(flight.model), apply(foo$DeployID, 2, mean))
+  model.pred <- c(1, 
+                  Tailwind, 
+                  Crosswind, 
+                  leg,
+                  Tailwind * Crosswind,
+                  Tailwind * leg,
+                  Crosswind * leg,
+                  Tailwind * Crosswind * leg,
+                  1,
+                  Crosswind * !leg,
+                  Crosswind * leg)
+  predictor <- model.coef %*% model.pred
+  1 / (1 + exp(-predictor))
+}
 model.predictions <- expand.grid(Tailwind = seq(-15, 15, length.out = cardinality),
                                  Crosswind = seq(0, 10, length.out = cardinality),
                                  Leg = c('Outbound', 'Inbound')) %>%
-  mutate(FlapRatio = predict(flight.model, .))
+  mutate(FlapRatio = mapply(predict.fun, Tailwind, Crosswind, Leg))
 
-ggplot(model.predictions, aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
-  geom_tile() +
-  facet_wrap(~ Leg)
+# Get convex hulls of original data
+segHulls <- segSample %>%
+  group_by(Leg) %>%
+  do({
+    pt_order <- with(., chull(Tailwind, Crosswind))
+    suppressWarnings(data.frame(Leg = .$Leg,
+                                Tailwind = .$Tailwind[pt_order],
+                                Crosswind = .$Crosswind[pt_order]))
+  })
+
+ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
+  geom_tile(aes(fill = FlapRatio)) +
+  geom_path(aes(color = Leg), data = segHulls, color = 'darkgrey') +
+  facet_wrap(~ Leg) +
+  scale_fill_distiller(type = 'div', palette = 'RdBu') +
+  labs(fill = 'Flap Ratio',
+       title = 'Model Predictions',
+       caption = 'Grey line indicates range of original data')
 ```
