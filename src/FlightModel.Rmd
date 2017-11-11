@@ -105,22 +105,6 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
   theme(legend.position = 'bottom')
 
 # F ~ T:C by L
-# Twidth <- 2
-# Cwidth <- 1
-# expand.grid(Tbin = seq(-10, 10, by = Twidth),
-#             Cbin = seq(0, 10, by = Cwidth)) %>%
-#   mutate(meanFlap = mapply(function(t, c) {
-#     result <- filter(segSample, 
-#                      Tailwind >= t,
-#                      Tailwind < t + Twidth,
-#                      Crosswind >= c,
-#                      Crosswind < c + Cwidth) %>%
-#       summarize(meanFlap = mean(FlapRatio))
-#     result$meanFlap
-#   }, Tbin, Cbin)) %>% View
-#   ggplot(aes(x = Tbin, y = Cbin, z = meanFlap)) +
-#   geom_tile()
-## TODO: how do a interpolate a 2d surface to F ~ T:C?
 interp.seg.out <- with(filter(segSample, Leg == 'Outbound'), 
                        interp(Tailwind, Crosswind, FlapRatio))
 expand.grid(i = seq(interp.seg.out$x),
