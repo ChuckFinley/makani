@@ -26,6 +26,7 @@ library(RSQLite)
 library(doParallel)
 library(iterators)
 library(glmmADMB)
+library(akima)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -120,6 +121,45 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
 #   ggplot(aes(x = Tbin, y = Cbin, z = meanFlap)) +
 #   geom_tile()
 ## TODO: how do a interpolate a 2d surface to F ~ T:C?
+interp.seg.out <- with(filter(segSample, Leg == 'Outbound'), 
+                       interp(Tailwind, Crosswind, FlapRatio))
+expand.grid(i = seq(interp.seg.out$x),
+            j = seq(interp.seg.out$y)) %>% 
+  mutate(Tailwind = sapply(i, function(a) interp.seg.out$x[a]),
+         Crosswind = sapply(j, function(b) interp.seg.out$y[b]), 
+         FlapRatio = mapply(function(a, b) interp.seg.out$z[a, b], i, j)) %>%
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
+  geom_tile() +
+  xlim(-12, 12) +
+  ylim(0, 11) +
+  scale_fill_distiller(palette = 'RdBu') +
+  labs(title = 'Interpolated Outbound Flap Ratios')
+
+interp.seg.in <- with(filter(segSample, Leg == 'Inbound'), 
+                       interp(Tailwind, Crosswind, FlapRatio))
+expand.grid(i = seq(interp.seg.in$x),
+            j = seq(interp.seg.in$y)) %>% 
+  mutate(Tailwind = sapply(i, function(a) interp.seg.in$x[a]),
+         Crosswind = sapply(j, function(b) interp.seg.in$y[b]), 
+         FlapRatio = mapply(function(a, b) interp.seg.in$z[a, b], i, j)) %>%
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
+  geom_tile() +
+  xlim(-12, 12) +
+  ylim(0, 11) +
+  scale_fill_distiller(palette = 'RdBu') +
+  labs(title = 'Interpolated Inbound Flap Ratios')
+
+# Distribution of F by T, C categories
+segSample %>%
+  mutate(Tcat = factor(ifelse(Tailwind < 0, 'Headwind', 'Tailwind')),
+         Ccat = factor(ifelse(Crosswind < median(Crosswind), 'Low Crosswind', 'High Crosswind'),
+                       levels = c('Low Crosswind', 'High Crosswind'))) %>%
+  ggplot(aes(x = Ccat, y = FlapRatio, fill = Leg)) + 
+  geom_boxplot() +
+  facet_grid(. ~ Tcat) +
+  labs(x = '',
+       title = 'Effect of crosswinds by head- and tailwinds') +
+  theme(legend.position = 'bottom')
 ```
 
 ## Determine random effects structure
