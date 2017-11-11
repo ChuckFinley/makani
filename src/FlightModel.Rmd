@@ -26,6 +26,7 @@ library(RSQLite)
 library(doParallel)
 library(iterators)
 library(glmmADMB)
+library(knitr)
 library(akima)
 
 # dplyr connections
@@ -234,13 +235,14 @@ re.summ <- foreach(f = re.form,
                AIC = AIC(m))
   }
 } %>%
-  mutate(dAIC = AIC - min(AIC, na.rm = TRUE)) %>%
+  mutate(dAIC = AIC - min(AIC, na.rm = TRUE),
+         rellik = exp(-0.5 * dAIC),
+         AICw = rellik/sum(rellik, na.rm = TRUE)) %>%
+  select(-rellik) %>%
   arrange(dAIC)
 
-## TODO: calculate AIC weight
-
 # Print table
-re.summ
+kable(re.summ, digits = 3)
 ```
 
 Based on AIC the top ranked random effects structure is (C:L|B). (L|B) and (T:C|B) had delta AIC of 7.930 and 8.708.
@@ -313,13 +315,14 @@ me.summ <- foreach(f = me.form,
                AIC = AIC(m))
   }
 } %>%
-  mutate(dAIC = AIC - min(AIC, na.rm = TRUE)) %>%
+  mutate(dAIC = AIC - min(AIC, na.rm = TRUE),
+         rellik = exp(-0.5 * dAIC),
+         AICw = rellik/sum(rellik, na.rm = TRUE)) %>%
+  select(-rellik) %>%
   arrange(dAIC)
 
-## TODO: calculate AIC weight
-
 # Print table
-me.summ
+kable(me.summ, digits = 3)
 
 # Compare actual/predicted distributions
 foreach(f = me.form,
