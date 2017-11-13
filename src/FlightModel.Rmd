@@ -74,7 +74,7 @@ Let's look at the distribution of segments across deployments, time, and locatio
 # Across deployments
 ggplot(segSample, aes(x = DeployID)) +
   geom_bar() +
-  labs(title = 'Segment sample: 14-48 segments from 12 trips')
+  labs(title = 'Segment sample: 14-48 segments from 12 individuals')
 
 # Through time
 ggplot(segSample, aes(x = Start, y = DeployID)) +
@@ -150,7 +150,7 @@ segSample %>%
 ```
 
 ## Determine random effects structure
-Starting with the maximal fixed effects model (F ~ T * C * L) rank the potential random effects structures (where TripID < DeployID) by AIC
+Starting with the maximal fixed effects model `F ~ T * C * L` rank the potential random effects structures (where TripID < DeployID) by AIC
 
 ```{r setup_random_effects}
 # List to store random effects model formulae
@@ -428,46 +428,42 @@ flight.model.ranef %>%
 ```
 
 ## Model predictions
-```{r mod.pred, eval = FALSE}
-cardinality <- 15
-predict.fun <- function(Tailwind, Crosswind, Leg) {
-  leg <- ifelse(Leg == 'Outbound', 1, 0)
-  model.coef <- c(coef(flight.model), apply(foo$DeployID, 2, mean))
-  model.pred <- c(1, 
-                  Tailwind, 
-                  Crosswind, 
-                  leg,
-                  Tailwind * Crosswind,
-                  Tailwind * leg,
-                  Crosswind * leg,
-                  Tailwind * Crosswind * leg,
-                  1,
-                  Crosswind * !leg,
-                  Crosswind * leg)
-  predictor <- model.coef %*% model.pred
-  1 / (1 + exp(-predictor))
-}
-model.predictions <- expand.grid(Tailwind = seq(-15, 15, length.out = cardinality),
-                                 Crosswind = seq(0, 10, length.out = cardinality),
-                                 Leg = c('Outbound', 'Inbound')) %>%
-  mutate(FlapRatio = mapply(predict.fun, Tailwind, Crosswind, Leg))
+```{r mod.pred}
+cardinality <- 30
+model.predictions <- expand.grid(Tailwind = seq(-12, 12, length.out = cardinality),
+                                 Crosswind = seq(0, 12, length.out = cardinality),
+                                 Leg = c('Inbound', 'Outbound')) %>%
+  mutate(FlapRatio = predict(flight.model, newdata = ., type = 'response'))
 
 # Get convex hulls of original data
 segHulls <- segSample %>%
-  group_by(Leg) %>%
   do({
     pt_order <- with(., chull(Tailwind, Crosswind))
-    suppressWarnings(data.frame(Leg = .$Leg,
-                                Tailwind = .$Tailwind[pt_order],
-                                Crosswind = .$Crosswind[pt_order]))
+    pt_order_closed <- c(pt_order, pt_order[1])
+    data.frame(Tailwind = .$Tailwind[pt_order_closed],
+               Crosswind = .$Crosswind[pt_order_closed],
+               stringsAsFactors = FALSE)
   })
 
+# Response plot with original data extent
 ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
   geom_tile(aes(fill = FlapRatio)) +
-  geom_path(aes(color = Leg), data = segHulls, color = 'darkgrey') +
+  geom_polygon(data = segHulls, fill = 'darkgrey', alpha = 0.55) +
+  geom_contour(aes(z = FlapRatio)) +
+  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.6)) +
   facet_wrap(~ Leg) +
-  scale_fill_distiller(type = 'div', palette = 'RdBu') +
   labs(fill = 'Flap Ratio',
-       title = 'Model Predictions',
-       caption = 'Grey line indicates range of original data')
+       title = 'Flight Model Predictions',
+       caption = 'Shaded area indicates extent of original data\nContours in blue')
+
+# Response plot without original data extent
+ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
+  geom_tile(aes(fill = FlapRatio)) +
+  geom_contour(aes(z = FlapRatio)) +
+  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.6)) +
+  facet_wrap(~ Leg) +
+  labs(fill = 'Flap Ratio',
+       title = 'Flight Model Predictions',
+       caption = 'Contours in blue')
 ```
+

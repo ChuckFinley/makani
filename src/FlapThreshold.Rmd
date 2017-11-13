@@ -79,7 +79,7 @@ foo <- times(10) %do% {
     geom_histogram(binwidth = 0.2, boundary = 0) +
     labs(x = 'Standard Deviation of Dynamic Heave (m/s^2)',
          y = 'Count of Acceleration Points',
-         title = 'Distribution of Standard Deviation of Dynamic Heave\nIndicates a Threshold at 5m/s^2') +
+         title = 'Distribution of Standard Deviation of Dynamic Heave') +
     xlim(0, 15)
   # ggplot results must be explicitly printed in foreach loops (including times)
   print(p)

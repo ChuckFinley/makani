@@ -29,6 +29,8 @@ library(glmmADMB)
 library(knitr)
 library(akima)
 library(rgdal)
+library(geosphere)
+library(spdep)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -65,7 +67,8 @@ segSample <- windSegments %>%
   semi_join(bothLegs, by = 'TripID') %>%
   group_by(TripID, Leg) %>%
   sample_n(1) %>%
-  ungroup
+  ungroup %>%
+  mutate(FlapPerKm = FlapRatio * 30*60 / (displacement / 1000))
 
 save(segSample, file = '../data/out/TransitSegments/SegSample.RData')
 ```
@@ -75,7 +78,7 @@ Let's look at the distribution of segments across deployments, time, and locatio
 # Across deployments
 ggplot(segSample, aes(x = DeployID)) +
   geom_bar() +
-  labs(title = 'Segment sample: 14-48 segments from 12 trips')
+  labs(title = 'Segment sample: 14-48 segments from 12 individuals')
 
 # Through time
 ggplot(segSample, aes(x = Start, y = DeployID)) +
@@ -414,6 +417,47 @@ flight.model.ranef %>%
   labs(x = 'Random Effect',
        y = 'Normalized Regression Estimates',
        title = 'Range of Normalized Random Effect Coefficients')
+## TODO: how is this usually done in journals?
+```
+
+```{r vs.leg}
+# Just checking, is no-leg model better than with-leg model?
+with.leg <- glmmadmb(FlapRatio ~ Tailwind * Crosswind * Leg + (Crosswind:Leg|DeployID), 
+                     segSample, 
+                     family = 'beta')
+sprintf('AIC of no-leg model = %.2f, AIC of leg model = %.2f', AIC(flight.model), AIC(with.leg))
+sprintf('delta AIC (no-leg minus leg) = %.2f', AIC(flight.model) - AIC(with.leg))
+
+# no-leg model has a better AIC. But so many "insignificant" terms. Is the parsimony significant?
+anova(flight.model, with.leg)
+
+# Are residuals spatially autocorrelated?
+# Append residuals to locations
+resid.loc <- segSample %>%
+  mutate(noleg.resid = resid(flight.model),
+         withleg.resid = resid(with.leg),
+         Dist2Col = distGeo(c(ColLon, ColLat), cbind(Longitude, Latitude))) %>%
+  select(Longitude, Latitude, Dist2Col, noleg.resid, withleg.resid)
+# Calculate inverse distance spatial weights matrix
+id.swm <- outer(seq(nrow(resid.loc)), seq(nrow(resid.loc)), 
+                function(i, j) {
+                  1 / distGeo(cbind(resid.loc$Longitude[i], resid.loc$Latitude[i]),
+                              cbind(resid.loc$Longitude[j], resid.loc$Latitude[j]))
+                  })
+id.swm[is.infinite(id.swm)] <- 0
+# Calculate Moran's I
+moran.test(resid.loc$withleg.resid, mat2listw(id.swm))
+moran.test(resid.loc$noleg.resid, mat2listw(id.swm))
+# Both sets of residuals are auto-correlated
+
+# In space
+ggplot(resid.loc) +
+  geom_polygon(data = hi_df, aes(x = long, y = lat, group = group), fill = 'white') +
+  geom_point(aes(x = Longitude, y = Latitude, color = withleg.resid)) +
+  coord_map() +
+  scale_color_distiller(palette = 'RdBu') +
+  theme(legend.position = 'bottom',
+        panel.background = element_rect(fill = 'darkgrey'))
 ```
 
 ## Model predictions
@@ -432,7 +476,8 @@ segHulls <- segSample %>%
                Crosswind = .$Crosswind[pt_order_closed],
                stringsAsFactors = FALSE)
   })
-
+ 
+# With original data extent
 ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
   geom_tile(aes(fill = FlapRatio)) +
   geom_polygon(data = segHulls, fill = 'darkgrey', alpha = 0.55) +
@@ -441,4 +486,61 @@ ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
   labs(fill = 'Flap Ratio',
        title = 'Flight Model Predictions',
        caption = 'Shaded area indicates extent of original data\nContours in blue')
+
+# Without original data extent
+ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
+  geom_tile(aes(fill = FlapRatio)) +
+  geom_contour(aes(z = FlapRatio)) +
+  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.5)) +
+  labs(fill = 'Flap Ratio',
+       title = 'Flight Model Predictions',
+       caption = 'Contours in blue')
+```
+
+What's the mean speed and flap ratio of transit segments?
+```{r}
+segSample %>%
+  summarize(mean(meanSpd))
+
+speed.model <- lm(meanSpd ~ Tailwind, data = segSample)
+summary(speed.model)
+ggplot(segSample, aes(x = Tailwind, y = meanSpd)) +
+  geom_point() +
+  geom_smooth(method = 'lm', alpha = 0) +
+  coord_fixed() +
+  labs(x = 'Tailwind speed (m/s)',
+       y = 'Ground speed (m/s)')
+
+summary(segSample$FlapRatio)
+```
+
+Wind selection
+```{r}
+segSample %>%
+  mutate(WindAngle = derivedFactor(Headwind = -Tailwind >= Crosswind,
+                                   Tailwind = Tailwind >= Crosswind,
+                                   Crosswind = between(-Tailwind, -Crosswind, Crosswind))) %>%
+  ggplot(aes(x = WindAngle)) +
+  geom_bar()
+
+wind.spd <- 5
+data.frame(windAngle = seq(0, pi, length.out = 20)) %>%
+  mutate(TailwindOut = wind.spd * cos(windAngle),
+         TailwindIn = wind.spd * cos(windAngle + pi/2),
+         CrosswindOut = wind.spd * sin(windAngle),
+         CrosswindIn = wind.spd * sin(windAngle + pi/2),
+         Out = predict(flight.model, 
+                        newdata = data.frame(Tailwind = TailwindOut, 
+                                             Crosswind = CrosswindOut),
+                        type = 'response'),
+         In = predict(flight.model, 
+                       newdata = data.frame(Tailwind = TailwindIn, 
+                                            Crosswind = CrosswindIn),
+                       type = 'response'),
+         Net = (Out + In) / 2) %>%
+  gather(key = Direction, value = FlapRatio, Out:Net) %>%
+  ggplot(aes(x = windAngle, y = FlapRatio, color = Direction)) +
+  geom_line() +
+  scale_x_continuous(breaks = pi/4 *0:4, 
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'))
 ```

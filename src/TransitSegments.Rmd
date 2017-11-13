@@ -40,6 +40,47 @@ tidytracks_db <- tbl(MHI_db, 'TidyTracks')
 POSIX.origin = ymd('1970-01-01', tz = 'UTC')
 ```
 
+## Recap RST results
+```{r RST_recap}
+tracks <- tidytracks_db %>%
+  # Join GPS type and subcolony code from metadata
+  left_join(select(metadata_db, DeployID, GPS_type, SubColCode),
+            by = 'DeployID') %>%
+  # Filter to RFO @ KPNWR w/ e-obs tags
+  filter(Species == 'RFBO',
+         GPS_type == 'e-obs',
+         SubColCode == 'KPC') %>%
+  collect(n = Inf) 
+
+med_tor <- median(tracks$Tortuosity, na.rm = TRUE)
+tracks %>%
+  filter(Tortuosity > 1, Tortuosity < 1.5) %>%
+  ggplot(aes(x = Tortuosity)) + 
+  geom_histogram(binwidth = 0.01, boundary = 0) +
+  geom_vline(xintercept = med_tor, color = 'red') +
+  labs(title = 'Median tortuosity is 1.05')
+
+transit_spd <- tracks %>%
+  filter(Tortuosity < med_tor,
+         Speed > 1) %>%
+  summarize(mean(Speed)) %>%
+  as.numeric
+
+ggplot(tracks, aes(x = Speed, fill = Tortuosity > med_tor)) + 
+  geom_histogram(binwidth = 0.5) +
+  xlim(0,20) +
+  geom_vline(xintercept = transit_spd) +
+  labs(x = 'Speed (m/s)',
+       y = 'Count of Track Points',
+       title = 'Mean Transit Speed') +
+  theme(legend.position = 'None')
+
+# What's the mean transit speed after classification?
+tracks %>%
+  filter(Behavior == 'transit') %>%
+  summarize(mean(Speed))
+```
+
 ## Identify Transit Segments
 Transit segments are the basis of analysis for the flight cost model. 
 
@@ -107,6 +148,7 @@ segments0 <- tracks %>%
   group_by(TripID) %>%
   mutate(Start = TimestampUTC,
          End = lead(TimestampUTC, leadWindow),
+         DistToCol,
          # Leg is a categorical variable specifying if the segment is outbound or inbound
          maxD2Ctime = TimestampUTC[which.max(DistToCol)],
          Leg = rollapply2(TimestampUTC, window, getLeg, maxD2Ctime),
