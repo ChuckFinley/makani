@@ -187,19 +187,52 @@ segSample %>%
                      labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
                      name = 'Tailwind  <---  Wind Angle  --->  Headwind')
 
-m <- gamm(FlapRatio ~ s(WindAngle), random = list(DeployID = ~1), family = gaussian(link = 'identity'), data = segSample)
-segSample %>%
-  mutate(mod.fit = predict(m$lme),
-         mod.resid = resid(m$lme)) %>%
-  ggplot(aes(x = DeployID, y = mod.resid)) +
-  geom_boxplot()
+interp.seg <- with(segSample, interp(WindAngle, WindMag, FlapRatio))
+expand.grid(i = seq(interp.seg.in$x),
+            j = seq(interp.seg.in$y)) %>% 
+  mutate(WindAngle = sapply(i, function(a) interp.seg$x[a]),
+         WindMag = sapply(j, function(b) interp.seg$y[b]), 
+         FlapRatio = mapply(function(a, b) interp.seg$z[a, b], i, j)) %>%
+  ggplot(aes(x = WindAngle, y = WindMag, fill = FlapRatio)) +
+  geom_tile() +
+  xlim(0, pi) +
+  ylim(0, 14) +
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind') +
+  scale_fill_distiller(palette = 'RdBu') +
+  labs(title = 'Interpolated Flap Ratios')
 
-segSample %>%
-  mutate(mod.fit = predict(m$lme),
-         mod.resid = resid(m$lme)) %>%
-  ggplot(aes(x = FlapRatio, y = mod.fit)) +
-  geom_point() +
-  geom_smooth()
+m.head <- lmer(FlapRatio ~ WindAngle + (1|DeployID), data = filter(segSample, WindAngle < pi/2))
+summary(m.head)
+m.head2 <- lmer(FlapRatio ~ WindAngle * Tailwind + (1|DeployID), data = filter(segSample, WindAngle < pi/2))
+summary(m.head2)
+AIC(m.head, m.head2)
+
+m.tail <- lmer(FlapRatio ~ WindAngle + (1|DeployID), data = filter(segSample, WindAngle >= pi/2))
+summary(m.tail)
+m.tail2 <- lmer(FlapRatio ~ WindAngle * Tailwind + (1|DeployID), data = filter(segSample, WindAngle >= pi/2))
+summary(m.tail2)
+AIC(m.tail, m.tail2)
+
+cardinality <- 30
+predict.F <- Vectorize(function(t, c) {
+  a <- atan2(c, t)
+  m <- if(a < pi/2) m.head else m.tail
+  df <- data.frame(WindAngle = a)
+  predict(m, newdata = df, type = 'response', re.form = NA)
+})
+model.predictions <- expand.grid(WindAngle = seq(0, pi, length.out = cardinality),
+                                 WindMag = seq(0, 14, length.out = cardinality)) %>%
+  mutate(FlapRatio = predict.F(Tailwind, Crosswind))
+
+ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
+  geom_tile(aes(fill = FlapRatio)) +
+  geom_contour(aes(z = FlapRatio)) +
+  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.5)) +
+  labs(fill = 'Flap Ratio',
+       title = 'Flight Model Predictions',
+       caption = 'Contours in blue')
 ```
 
 ## Determine random effects structure
