@@ -354,12 +354,13 @@ accelerationProcessing <- foreach(accMetaRow = iter(accMeta, by = 'row'),
              X = seg$bX + seg$mX * X0,
              Y = seg$bY + seg$mY * Y0,
              Z = seg$bZ + seg$mZ * Z0,
-             StaticX = mean(X),
-             StaticY = mean(Y),
-             StaticZ = mean(Z),
+             StaticX = runmed(X, acc.freq * 2 - 1, endrule = 'constant'),
+             StaticY = runmed(Y, acc.freq * 2 - 1, endrule = 'constant'),
+             StaticZ = runmed(Z, acc.freq * 2 - 1, endrule = 'constant'),
              DynX = X - StaticX,
              DynY = Y - StaticY,
-             DynZ = Z - StaticZ)
+             DynZ = Z - StaticZ,
+             ODBA = abs(DynX) + abs(DynY) + abs(DynZ))
     }
     
     # If the segment has acceleration data, add it to the SQLite table
