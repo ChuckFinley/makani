@@ -31,6 +31,9 @@ library(akima)
 library(rgdal)
 library(geosphere)
 library(spdep)
+library(mosaic)
+library(mgcv)
+library(lme4)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -68,8 +71,7 @@ segSample <- windSegments %>%
   group_by(TripID, Leg) %>%
   sample_n(1) %>%
   ungroup %>%
-  mutate(WindMag = sqrt(Tailwind^2 + Crosswind^2),
-         WindAngle = atan2(Crosswind, Tailwind))
+  mutate(AirSpd = sqrt((meanSpd - Tailwind)^2 + Crosswind^2)) 
 
 save(segSample, file = '../data/out/TransitSegments/SegSample.RData')
 ```
@@ -123,47 +125,40 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
        title = 'Flap ratio relationship to crosswind speed varies by leg') +
   theme(legend.position = 'bottom')
 
-# F ~ T:C by L
-interp.seg.out <- with(filter(segSample, Leg == 'Outbound'), 
-                       interp(Tailwind, Crosswind, FlapRatio))
-expand.grid(i = seq(interp.seg.out$x),
-            j = seq(interp.seg.out$y)) %>% 
-  mutate(Tailwind = sapply(i, function(a) interp.seg.out$x[a]),
-         Crosswind = sapply(j, function(b) interp.seg.out$y[b]), 
-         FlapRatio = mapply(function(a, b) interp.seg.out$z[a, b], i, j)) %>%
-  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
-  geom_tile() +
-  xlim(-12, 12) +
-  ylim(0, 11) +
-  scale_fill_distiller(palette = 'RdBu') +
-  labs(title = 'Interpolated Outbound Flap Ratios')
-
-interp.seg.in <- with(filter(segSample, Leg == 'Inbound'), 
-                       interp(Tailwind, Crosswind, FlapRatio))
-expand.grid(i = seq(interp.seg.in$x),
-            j = seq(interp.seg.in$y)) %>% 
-  mutate(Tailwind = sapply(i, function(a) interp.seg.in$x[a]),
-         Crosswind = sapply(j, function(b) interp.seg.in$y[b]), 
-         FlapRatio = mapply(function(a, b) interp.seg.in$z[a, b], i, j)) %>%
-  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
-  geom_tile() +
-  xlim(-12, 12) +
-  ylim(0, 11) +
-  scale_fill_distiller(palette = 'RdBu') +
-  labs(title = 'Interpolated Inbound Flap Ratios')
-
-interp.seg <- with(segSample, interp(Tailwind, Crosswind, FlapRatio))
-expand.grid(i = seq(interp.seg.in$x),
-            j = seq(interp.seg.in$y)) %>% 
+# F ~ T:C
+interp.seg <- with(segSample, 
+                   interp(Tailwind, Crosswind, FlapRatio, nx = 40, ny = 20))
+expand.grid(i = seq(interp.seg$x),
+            j = seq(interp.seg$y)) %>% 
   mutate(Tailwind = sapply(i, function(a) interp.seg$x[a]),
          Crosswind = sapply(j, function(b) interp.seg$y[b]), 
          FlapRatio = mapply(function(a, b) interp.seg$z[a, b], i, j)) %>%
   ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
   geom_tile() +
-  xlim(-12, 12) +
-  ylim(0, 11) +
+  geom_abline(intercept = 0, slope = c(-1, 1)) +
+  scale_x_continuous(breaks = seq(-12, 12, by = 3)) +
+  scale_y_continuous(breaks = seq(0, 12, by = 3)) +
   scale_fill_distiller(palette = 'RdBu') +
+  coord_fixed(xlim = c(-12, 12),
+              ylim = c(0, 12)) +
   labs(title = 'Interpolated Flap Ratios')
+
+interp.spd <- with(segSample, 
+                   interp(Tailwind, Crosswind, meanSpd - Tailwind, nx = 40, ny = 20))
+expand.grid(i = seq(interp.spd$x),
+            j = seq(interp.spd$y)) %>% 
+  mutate(Tailwind = sapply(i, function(a) interp.spd$x[a]),
+         Crosswind = sapply(j, function(b) interp.spd$y[b]), 
+         AirSpeed = mapply(function(a, b) interp.spd$z[a, b], i, j)) %>%
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = AirSpeed)) +
+  geom_tile() +
+  geom_abline(intercept = 0, slope = c(-1, 1)) +
+  scale_x_continuous(breaks = seq(-12, 12, by = 3)) +
+  scale_y_continuous(breaks = seq(0, 12, by = 3)) +
+  scale_fill_distiller(palette = 'RdBu') +
+  coord_fixed(xlim = c(-12, 12),
+              ylim = c(0, 12)) +
+  labs(title = 'Interpolated Air Speeds')
 
 # Distribution of F by T, C categories
 segSample %>%
@@ -178,7 +173,7 @@ segSample %>%
   theme(legend.position = 'bottom')
 ```
 
-```{r}
+```{r, eval = FALSE}
 segSample %>%
   ggplot(aes(x = WindAngle, y = FlapRatio)) +
   geom_smooth(method = 'loess') +
@@ -587,30 +582,92 @@ summary(segSample$FlapRatio)
 
 Wind selection
 ```{r}
+# More segments were in tail-/headwinds than crosswinds
 segSample %>%
   mutate(WindAngle = derivedFactor(Headwind = -Tailwind >= Crosswind,
                                    Tailwind = Tailwind >= Crosswind,
-                                   Crosswind = between(-Tailwind, -Crosswind, Crosswind))) %>%
+                                   Crosswind = abs(Tailwind) < Crosswind)) %>%
   ggplot(aes(x = WindAngle)) +
   geom_bar()
 
-wind.spd <- 5
-data.frame(windAngle = seq(0, pi, length.out = 20)) %>%
-  mutate(TailwindOut = wind.spd * cos(windAngle),
-         TailwindIn = wind.spd * cos(windAngle + pi/2),
-         CrosswindOut = wind.spd * sin(windAngle),
-         CrosswindIn = wind.spd * sin(windAngle + pi/2),
-         Out = predict(flight.model, 
-                        newdata = data.frame(Tailwind = TailwindOut, 
-                                             Crosswind = CrosswindOut),
-                        type = 'response'),
-         In = predict(flight.model, 
-                       newdata = data.frame(Tailwind = TailwindIn, 
-                                            Crosswind = CrosswindIn),
-                       type = 'response'),
-         Net = (Out + In) / 2) %>%
-  gather(key = Direction, value = FlapRatio, Out:Net) %>%
-  ggplot(aes(x = windAngle, y = FlapRatio, color = Direction)) +
+segSample2 <- mutate(segSample, 
+                     WindAngle = atan2(Crosswind, Tailwind),
+                     AirSpeed = sqrt((meanSpd - Tailwind)^2 + Crosswind^2))
+
+# Flap ratio decreases as tailwinds increase, but flat in all headwinds
+ggplot(segSample2, aes(x = WindAngle, y = FlapRatio)) +
+  geom_smooth(method = 'gam', formula = y ~ s(x)) +
+  geom_point() +
+  scale_x_continuous(breaks = pi/4 *0:4, 
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'))
+
+flap.gam <- gamm(FlapRatio ~ s(WindAngle), 
+                 random = list(DeployID = ~1), 
+                 family = gaussian(link = 'identity'),
+                 data = segSample2)
+
+# Air speed
+ggplot(segSample2, aes(x = Tailwind, y = AirSpeed, color = Crosswind)) +
+  geom_point() +
+  geom_smooth(method = 'gam', formula = y ~ s(x)) +
+  scale_color_distiller(palette = 'RdBu')
+
+airspd.lm <- lmer(AirSpeed ~ Tailwind + (1|DeployID), data = segSample2)
+mutate(segSample2,
+       airspd.resid = resid(airspd.lm)) %>%
+  ggplot(aes(sample = airspd.resid / sd(airspd.resid))) +
+  stat_qq() +
+  geom_abline(slope = 1, intercept = 0, color = 'darkred') +
+  labs(title = 'Residual Q-Q plots') +
+  coord_fixed()
+
+wind.spd <- 8.1 # m/s
+mass <- 1060 # g
+distance <- 100e3 # m
+# Assume work is a weighted average of flap/glide. See Duerr et al. 2012 for flap/glide
+# power ratio. See Raymond et al. 2010 for E ~ Va. See Ballance 1995 for RFBO parameters
+W <- function(Va) {
+  S <- 0.2 # m^2
+  q <- 9.7 # W (RMR)
+  # What's r?
+  q + 1/Va + S * Va^3
+}
+Wfg <- function(fg, Va) {
+  w <- W(Va)
+  w * mass ^ 1.17 * fg + w * mass ^ 0.78 * (1 - fg)
+}
+E <- function(W, d, Vg) {
+  W * d / Vg
+}
+Vg <- function(Va, t, c) {
+  sqrt(Va^2 - c^2) + t
+}
+Va <- function(t) {
+  predict(airspd.lm, newdata = data.frame(Tailwind = t), re.form = NA)
+}
+foo <- data.frame(windAngle = seq(0, pi, length.out = 20)) %>%
+  mutate(TOut = wind.spd * cos(windAngle),
+         TIn = wind.spd * cos(pi - windAngle),
+         COut = wind.spd * sin(windAngle),
+         CIn = wind.spd * sin(pi - windAngle),
+         FOut = predict(flap.gam$gam, 
+                        newdata = data.frame(WindAngle = windAngle)),
+         FIn = predict(flap.gam$gam, 
+                       newdata = data.frame(WindAngle = pi - windAngle)),
+         FNet = (FOut + FIn) / 2,
+         VaOut = Va(TOut),
+         VaIn = Va(TIn),
+         VgOut = Vg(VaOut, TOut, COut),
+         VgIn = Vg(VaIn, TIn, CIn),
+         WOut = Wfg(FOut, VaOut),
+         WIn = Wfg(FIn, VaIn),
+         EOut = E(WOut, distance, VgOut),
+         EIn = E(WIn, distance, VgIn),
+         ETot = EOut + EIn)
+
+foo %>%
+  gather(key = Direction, value = energy, EOut:ETot) %>%
+  ggplot(aes(x = windAngle, y = energy, color = Direction)) +
   geom_line() +
   scale_x_continuous(breaks = pi/4 *0:4, 
                      labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'))
