@@ -270,7 +270,7 @@ segPerTrip %>%
 ## Transit Acceleration
 Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns. Calibrate the acceleration data to m/s^2 and separate the static from dynamic acceleration. The results are written to a table called SegmentACC.
 
-```{r transitAcc}
+```{r transitAcc, eval = FALSE}
 # Acceleration metadata
 accMeta <- metadata_db %>%
   # Filter to the e-obs tagged RFBO from KPNWR
@@ -299,6 +299,7 @@ segmentsACCmeta <- validSegments %>%
 # Process acceleration data by deployment and segment
 accelerationProcessing <- foreach(accMetaRow = iter(accMeta, by = 'row'),
                                   .combine = rbind) %do% {
+  cat(sprintf('Beginning DeployID %s\n', accMetaRow$DeployID))
   # Load acceleration file
   acc.file <- sprintf('../data/ClippedACC/%s.csv', accMetaRow$GPS_ID)
   acc.data <- read.csv(acc.file, stringsAsFactors = FALSE) %>%
@@ -318,6 +319,7 @@ accelerationProcessing <- foreach(accMetaRow = iter(accMeta, by = 'row'),
   deployACC <- foreach(seg = iter(taskList, by = 'row'),
                        .combine = rbind) %do% {
     
+    cat(sprintf('Beginning DeployID %s, SegmentID %i\n', accMetaRow$DeployID, seg$SegmentID))
     # Filter temporally to acceleration data from segment
     segAccRaw <- acc.data %>%
       filter(TimestampUTC >= seg$Start, TimestampUTC <= seg$End)
@@ -377,7 +379,9 @@ accelerationProcessing <- foreach(accMetaRow = iter(accMeta, by = 'row'),
                  Processed = FALSE,
                  Issue = 'NoProcessedData')
     }
+    cat(sprintf('Finished DeployID %s, SegmentID %i\n', accMetaRow$DeployID, seg$SegmentID))
   }
+  cat(sprintf('Finished DeployID %s\n', accMetaRow$DeployID))
 }
 
 accelerationProcessing %>%
