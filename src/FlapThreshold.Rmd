@@ -44,8 +44,9 @@ Utility functions
 get.acc <- function(segID) {
   # Knitting doesn't play nice with external database connections, so this
   #   is the workaround.
-  this.acc_db <- tbl(src_sqlite('../data/MHI_GPS.sqlite'), 'SegmentACC')
-  this.acc_db %>%
+  mhi_db <- DBI::dbConnect(RSQLite::SQLite(), dbname = '../data/MHI_GPS.sqlite')
+  this.acc_db <- tbl(mhi_db, 'SegmentACC')
+  result <- this.acc_db %>%
     filter(SegmentID == segID) %>%
     collect(n = Inf) %>%
     transmute(DeployID,
@@ -55,43 +56,53 @@ get.acc <- function(segID) {
                                            tz = 'UTC',
                                            origin = POSIX.origin),
               X, Y, Z,
-              DynX, DynY, DynZ)
+              DynX, DynY, DynZ,
+              ODBA)
+  DBI::dbDisconnect(mhi_db)
+  result
 }
 ```
 
 Distribution of Heave Standard Deviation
 Sample 1% of the segments, calculate the standard deviation of dynamic heave in 0.5s (10 points) windows. Plot the histogram. Repeat 10 times. Ideally there should be two peaks: a lower one for gliding and a higher one for flapping. If the troughs are in the same place then that's the threshold.
-```{r distHeaveSd, warning = FALSE}
-# Calculate standard deviation of dynamic heave over 10 point (0.5s) window
-sd.win <- 10
-
-# Make ten plots and suppress the output of times
-foo <- times(10) %do% {
-  # Each plot samples 1% of the segments
-  p <- foreach(seg = sample_frac(validSegments, 0.01)$SegmentID,
-          .combine = rbind) %do% {
-    get.acc(seg) %>%
-      # Calculate the sd of DynZ over a sliding window
-      mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
-  } %>%
-    # Create the histogram
-    ggplot(aes(x = SdDynZ)) +
-    geom_histogram(binwidth = 0.2, boundary = 0) +
-    labs(x = 'Standard Deviation of Dynamic Heave (m/s^2)',
-         y = 'Count of Acceleration Points',
-         title = 'Distribution of Standard Deviation of Dynamic Heave') +
-    xlim(0, 15)
-  # ggplot results must be explicitly printed in foreach loops (including times)
-  print(p)
+```{r distHeaveSd, warning = FALSE, eval = FALSE}
+# Calculate standard deviation of dynamic heave over various windows
+foreach(sd.win = 5:15) %do% {
+  validSegments %>%
+    group_by(DeployID) %>%
+    do({
+      n_seg <- min(nrow(.), 100)
+      sdDynZdist <- sample_n(., n_seg, replace = FALSE) %>%
+        rowwise %>%
+        do({
+          get.acc(.$SegmentID) %>%
+            mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
+        })
+      p <- ggplot(sdDynZdist, aes(x = SdDynZ)) +
+        geom_histogram(binwidth = 0.2, boundary = 0) +
+        labs(x = 'Standard Deviation of Dynamic Heave (m/s^2)',
+             y = 'Count of Acceleration Points',
+             title = 'Distribution of Standard Deviation of Dynamic Heave',
+             caption = sprintf('Window of %d points\nDeployID %s', sd.win, first(.$DeployID))) +
+        xlim(0, 15)
+      ggsave(sprintf('../analysis/figures/SegmentAcceleration/SdWin/%s_%i.png', 
+                     first(.$DeployID), 
+                     sd.win),
+             p, width = 15, height = 8.8, units = 'in')
+      data.frame(DeployID = first(.$DeployID, sdWin = sd.win))
+    })
 }
+
+# Optimal window appears to be 6 points (0.3 seconds)
+sd.win <- 6
 ```
 
-From a visual inspection of the distribution of the standard deviation of dynamic heave I am setting the flap/glide threshold at 5m/s^2.
+A visual inspection of the distribution of the standard deviation of dynamic shows that a window of six points has the clearest bimodality and there's a flap/glide threshold at 5.5m/s^2.
 
 This chunk has functions for visualizing acceleration by segment.
 
 ```{r vizAccFun}
-flap.thresh <- 5
+flap.thresh <- 5.5
 
 # This function plots the heave acceleration bursts from a segment. Color codes 
 #   flapping points based on a sliding window of standard deviance and a threshold.
@@ -172,6 +183,10 @@ calculateFlapRatio <- function(segID) {
     mutate(SdDynZ = rollapply(DynZ, sd.win, sd, align = 'center', fill = NA))
   sum(acc.data$SdDynZ > flap.thresh, na.rm = TRUE) / nrow(acc.data)
 }
+calculateODBA <- function(segID) {
+  acc.data <- get.acc(segID)
+  mean(acc.data$ODBA, na.rm = TRUE)
+}
 
 # Let's go parallel
 nCores <- detectCores() - 1
@@ -184,7 +199,8 @@ foo <- clusterEvalQ(flapCl, {
   
 # Annotate validSegments with flap ratio
 accSegments <- validSegments %>%
-  mutate(FlapRatio = parSapply(flapCl, SegmentID, calculateFlapRatio))
+  mutate(FlapRatio = parSapply(flapCl, SegmentID, calculateFlapRatio),
+         MeanODBA = parSapply(flapCl, SegmentID, calculateODBA))
 
 stopCluster(flapCl)
 

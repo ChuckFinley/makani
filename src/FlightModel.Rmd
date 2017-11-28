@@ -467,3 +467,86 @@ ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
        caption = 'Contours in blue')
 ```
 
+```{r}
+segSample2 <- mutate(segSample, 
+                     WindMag = sqrt(Tailwind^2+Crosswind^2), 
+                     WindAngle = atan2(Crosswind, Tailwind))
+
+ggplot(segSample2, aes(x = WindAngle, y = MeanODBA, color = WindMag)) +
+  geom_point() +
+  geom_smooth()
+maModel <- lmer(MeanODBA ~ WindMag * WindAngle + (1|DeployID), segSample2)
+mutate(segSample2,
+       fitted = fitted(maModel),
+       resid = resid(maModel)) %>%
+  ggplot(aes(x = fitted, y = resid)) +
+  geom_point() +
+  geom_smooth()
+r.squaredGLMM(maModel)
+
+ggplot(segSample2, aes(x = WindAngle, y = FlapRatio, color = WindMag)) +
+  geom_point() +
+  geom_smooth()
+maModel2 <- lmer(FlapRatio ~ WindMag * poly(WindAngle, 2) + (1|DeployID), segSample2)
+mutate(segSample2,
+       fitted = fitted(maModel2, type = 'response'),
+       resid = resid(maModel2)) %>%
+  ggplot(aes(x = fitted, y = resid)) +
+  geom_point() +
+  geom_smooth()
+
+maModel2.prd <- expand.grid(WindAngle = seq(0, pi, length.out = 100),
+                            DeployID = unique(segSample2$DeployID)) %>%
+  mutate(WindMag = median(segSample2$WindMag)) %>%
+  cbind(predictInterval(maModel2, 
+                        newdata = .,
+                        which = 'fixed')) # merTools
+
+mutate(segSample2,
+       fitted = fitted(maModel2, type = 'response'),
+       resid = resid(maModel2)) %>%
+  ggplot() +
+  geom_point(aes(x = WindAngle, y = FlapRatio)) +
+  geom_ribbon(aes(x = WindAngle, ymin = lwr, ymax = upr), 
+              data = maModel2.prd,
+              alpha = 0.5,
+              fill = 'lightblue') +
+  geom_line(aes(x = WindAngle, y = fit), 
+            data = maModel2.prd,
+            color = 'blue') +
+  facet_wrap(~DeployID)
+r.squaredGLMM(maModel2)
+
+ggplot(segSample2, aes(x = Tailwind, y = FlapRatio, color = Crosswind)) +
+  geom_point() +
+  geom_smooth()
+tcModel <- lmer(FlapRatio ~ Crosswind * poly(Tailwind, 2) + (1|DeployID), segSample2)
+mutate(segSample2,
+       fitted = fitted(tcModel, type = 'response'),
+       resid = resid(tcModel)) %>%
+  ggplot(aes(x = fitted, y = resid)) +
+  geom_point() +
+  geom_smooth()
+
+tcModel.prd <- expand.grid(Tailwind = seq(-10, 10, length.out = 100),
+                           DeployID = unique(segSample2$DeployID)) %>%
+  mutate(Crosswind = median(segSample2$Crosswind)) %>%
+  cbind(predictInterval(tcModel, 
+                        newdata = .,
+                        which = 'fixed')) # merTools
+
+mutate(segSample2,
+       fitted = fitted(tcModel, type = 'response'),
+       resid = resid(tcModel)) %>%
+  ggplot() +
+  geom_point(aes(x = Tailwind, y = FlapRatio)) +
+  geom_ribbon(aes(x = Tailwind, ymin = lwr, ymax = upr), 
+              data = tcModel.prd,
+              alpha = 0.5,
+              fill = 'lightblue') +
+  geom_line(aes(x = Tailwind, y = fit), 
+            data = tcModel.prd,
+            color = 'blue') +
+  facet_wrap(~DeployID)
+r.squaredGLMM(tcModel)
+```
