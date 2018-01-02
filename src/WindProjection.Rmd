@@ -170,7 +170,9 @@ windSegments <- windSegments0 %>%
   # Drop the six segments outside the model's spatial range
   na.omit %>%
   mutate(Tailwind = project(bearing, uWind, vWind),
-         Crosswind = reject(uWind, vWind, Tailwind))
+         Crosswind = reject(uWind, vWind, Tailwind),
+         WindSpd = sqrt(uWind^2 + vWind^2),
+         WindAngle = atan2(Crosswind, Tailwind))
 
 save(windSegments, file = '../data/out/TransitSegments/WindSegments.RData')
 ```
