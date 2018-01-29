@@ -32,8 +32,7 @@ library(rgdal)
 library(geosphere)
 library(spdep)
 library(mosaic)
-library(mgcv)
-library(lme4)
+library(rlang)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -315,22 +314,9 @@ char.formula <- function(f) {
     paste(mod.parts[1], mod.parts[3])
 }
 
-fe.fv.max <- FlapRatio ~ Tailwind * Crosswind
-re.fv.form <- list(# Intercepts
-                   ~ . + (1|DeployID),
-                   ~ . + (1|Leg),
-                   # Slopes
-                   ~ . + (Tailwind|DeployID),
-                   ~ . + (Crosswind|DeployID),
-                   ~ . + (Tailwind|DeployID) + (Crosswind|DeployID),
-                   ~ . + (Tailwind|Leg),
-                   ~ . + (Crosswind|Leg),
-                   ~ . + (Tailwind|Leg) + (Crosswind|Leg),
-                   # Both
-                   ~ . + (Tailwind|DeployID) + (Tailwind|Leg),
-                   ~ . + (Crosswind|DeployID) + (Crosswind|Leg),
-                   ~ . + (Tailwind|DeployID) + (Crosswind|Leg),
-                   ~ . + (Crosswind|DeployID) + (Tailwind|Leg))
+fe.fv.max <- FlapRatio ~ poly(Tailwind, 2) * Crosswind
+re.fv.form <- list(~ . + (1|DeployID),
+                   ~ . + (1|Leg))
 ```
 
 ```{r fit_re_fv, eval = FALSE}
@@ -372,26 +358,25 @@ re.fv.summ <- foreach(f = re.fv.form,
 kable(re.fv.summ, digits = 3)
 ```
 
-Based on AIC the top ranked FV random effects structure is (1|B). (T|B) and (C|B) had delta AIC of 2.
+Based on AIC the top ranked FV random effects structure is (1|B).
 
 ## Determine optimal fixed effects structure
 Using the optimal random effects structure, determine best fitting fixed effects structure
 ```{r setup_fe_fv}
-# Formula of optimal random effects structure
+# Formulae of optimal random effects structure
 re.fv.optim <- FlapRatio ~ (1|DeployID)
 # List to store fixed effects model formulae
-me.fv.form <- list(list(~ . + Tailwind * Crosswind, re.fv.optim),
-                list(~ . + Tailwind + Crosswind, re.fv.optim),
-                list(~ . + Tailwind, re.fv.optim),
-                list(~ . + Crosswind, re.fv.optim))
+me.fv.form <- list(list(~ . + poly(Tailwind, 2) * Crosswind, re.fv.optim),
+                   list(~ . + poly(Tailwind, 2) + Crosswind, re.fv.optim),
+                   list(~ . + poly(Tailwind, 2), re.fv.optim),
+                   list(~ . + Crosswind, re.fv.optim))
 ```
 
 ```{r fit_me_fv, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
-me.fv.mod <- foreach(f = me.fv.form,
-                     i = seq_along(re.fv.form)) %dopar% {
+me.fv.mod <- foreach(f = me.fv.form) %dopar% {
   # Update 
   mod.formula <- update.formula(f[[2]], f[[1]])
   tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
@@ -403,7 +388,7 @@ save(me.fv.mod, file = '../data/out/Models/MEFVmodels.RData')
 ```
 
 ```{r summarize_me_fv}
-load('../data/out/Models/MEmodels.RData')
+load('../data/out/Models/MEFVmodels.RData')
 # Summarize models by AIC
 me.fv.summ <- foreach(f = me.fv.form,
                       m = me.fv.mod, 
@@ -435,22 +420,10 @@ kable(me.fv.summ, digits = 3)
 ## Determine optimal random effects structure (from DeployID, Leg)
 
 ```{r setup_re_fs}
-fe.fs.max <- FlapRatio ~ WindAngle * WindSpd
+fe.fs.max <- FlapRatio ~ poly(WindAngle, 2) * WindSpd
 re.fs.form <- list(# Intercepts
                    ~ . + (1|DeployID),
-                   ~ . + (1|Leg),
-                   # Slopes
-                   ~ . + (WindAngle|DeployID),
-                   ~ . + (WindSpd|DeployID),
-                   ~ . + (WindAngle|DeployID) + (WindSpd|DeployID),
-                   ~ . + (WindAngle|Leg),
-                   ~ . + (WindSpd|Leg),
-                   ~ . + (WindAngle|Leg) + (WindSpd|Leg),
-                   # Both
-                   ~ . + (WindAngle|DeployID) + (WindAngle|Leg),
-                   ~ . + (WindSpd|DeployID) + (WindSpd|Leg),
-                   ~ . + (WindAngle|DeployID) + (WindSpd|Leg),
-                   ~ . + (WindSpd|DeployID) + (WindAngle|Leg))
+                   ~ . + (1|Leg))
 ```
 
 ```{r fit_re_fs, eval = FALSE}
@@ -492,26 +465,26 @@ re.fs.summ <- foreach(f = re.fs.form,
 kable(re.fs.summ, digits = 3)
 ```
 
-Based on AIC the top ranked FV random effects structure is (1|B). (M|B) and (A|B) had delta AIC of 1.978 and 2, respectively.
+Based on AIC the top ranked FV random effects structure is (1|B).
 
 ## Determine optimal fixed effects structure
 Using the optimal random effects structure, determine best fitting fixed effects structure
 ```{r setup_fe_fs}
-# Formula of optimal random effects structure
+# Formulae of optimal random effects structure
 re.fs.optim <- FlapRatio ~ (1|DeployID)
 # List to store fixed effects model formulae
-me.fs.form <- list(list(~ . + WindAngle * WindSpd, re.fs.optim),
-                list(~ . + WindAngle + WindSpd, re.fs.optim),
-                list(~ . + WindAngle, re.fs.optim),
-                list(~ . + WindSpd, re.fs.optim))
+me.fs.form <- list(# RE1
+                   list(~ . + poly(WindAngle, 2) * WindSpd, re.fs.optim),
+                   list(~ . + poly(WindAngle, 2) + WindSpd, re.fs.optim),
+                   list(~ . + poly(WindAngle, 2), re.fs.optim),
+                   list(~ . + WindSpd, re.fs.optim))
 ```
 
 ```{r fit_me_fs, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
-me.fs.mod <- foreach(f = me.fs.form,
-                     i = seq_along(re.fs.form)) %dopar% {
+me.fs.mod <- foreach(f = me.fs.form) %dopar% {
   # Update 
   mod.formula <- update.formula(f[[2]], f[[1]])
   tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
@@ -523,7 +496,7 @@ save(me.fs.mod, file = '../data/out/Models/MEFSmodels.RData')
 ```
 
 ```{r summarize_me_fs}
-load('../data/out/Models/MEmodels.RData')
+load('../data/out/Models/MEFSmodels.RData')
 # Summarize models by AIC
 me.fs.summ <- foreach(f = me.fs.form,
                       m = me.fs.mod, 
@@ -555,22 +528,10 @@ kable(me.fs.summ, digits = 3)
 ## Determine optimal random effects structure (from DeployID, Leg)
 
 ```{r setup_re_ov}
-fe.ov.max <- MeanODBA ~ Tailwind * Crosswind
+fe.ov.max <- MeanODBA ~ poly(Tailwind, 2) * Crosswind
 re.ov.form <- list(# Intercepts
                    ~ . + (1|DeployID),
-                   ~ . + (1|Leg),
-                   # Slopes
-                   ~ . + (Tailwind|DeployID),
-                   ~ . + (Crosswind|DeployID),
-                   ~ . + (Tailwind|DeployID) + (Crosswind|DeployID),
-                   ~ . + (Tailwind|Leg),
-                   ~ . + (Crosswind|Leg),
-                   ~ . + (Tailwind|Leg) + (Crosswind|Leg),
-                   # Both
-                   ~ . + (Tailwind|DeployID) + (Tailwind|Leg),
-                   ~ . + (Crosswind|DeployID) + (Crosswind|Leg),
-                   ~ . + (Tailwind|DeployID) + (Crosswind|Leg),
-                   ~ . + (Crosswind|DeployID) + (Tailwind|Leg))
+                   ~ . + (1|Leg))
 ```
 
 ```{r fit_re_ov, eval = FALSE}
@@ -612,25 +573,25 @@ re.ov.summ <- foreach(f = re.ov.form,
 kable(re.ov.summ, digits = 3)
 ```
 
-Based on AIC the top ranked OV random effects structure is (T|B) + (T|L). (C|B) + (T|L) had delta AIC of 1.882.
+Based on AIC the top ranked OV random effects structure is (1|B).
 
 ## Determine optimal fixed effects structure
 Using the optimal random effects structure, determine best fitting fixed effects structure
 ```{r setup_fe_ov}
 # Formula of optimal random effects structure
-re.ov.optim <- MeanODBA ~ (Tailwind|DeployID) + (Tailwind|Leg)
+re.ov.optim <- MeanODBA ~ (1|DeployID)
 # List to store fixed effects model formulae
-me.ov.form <- list(list(~ . + Tailwind * Crosswind, re.ov.optim),
-                list(~ . + Tailwind + Crosswind, re.ov.optim),
-                list(~ . + Tailwind, re.ov.optim))
+me.ov.form <- list(list(~ . + poly(Tailwind, 2) * Crosswind, re.ov.optim),
+                   list(~ . + poly(Tailwind, 2) + Crosswind, re.ov.optim),
+                   list(~ . + poly(Tailwind, 2), re.ov.optim),
+                   list(~ . + Crosswind, re.ov.optim))
 ```
 
 ```{r fit_me_ov, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
-me.ov.mod <- foreach(f = me.ov.form,
-                     i = seq_along(re.ov.form)) %dopar% {
+me.ov.mod <- foreach(f = me.ov.form) %dopar% {
   # Update 
   mod.formula <- update.formula(f[[2]], f[[1]])
   tryCatch(glmmadmb(mod.formula, segSample, family = 'gaussian'), error = function(e) NULL)
@@ -642,7 +603,7 @@ save(me.ov.mod, file = '../data/out/Models/MEOVmodels.RData')
 ```
 
 ```{r summarize_me_ov}
-load('../data/out/Models/MEmodels.RData')
+load('../data/out/Models/MEOVmodels.RData')
 # Summarize models by AIC
 me.ov.summ <- foreach(f = me.ov.form,
                       m = me.ov.mod, 
@@ -674,22 +635,10 @@ kable(me.ov.summ, digits = 3)
 ## Determine optimal random effects structure (from DeployID, Leg)
 
 ```{r setup_re_os}
-fe.os.max <- MeanODBA ~ WindAngle * WindSpd
+fe.os.max <- MeanODBA ~ poly(WindAngle, 2) * WindSpd
 re.os.form <- list(# Intercepts
                    ~ . + (1|DeployID),
-                   ~ . + (1|Leg),
-                   # Slopes
-                   ~ . + (WindAngle|DeployID),
-                   ~ . + (WindSpd|DeployID),
-                   ~ . + (WindAngle|DeployID) + (WindSpd|DeployID),
-                   ~ . + (WindAngle|Leg),
-                   ~ . + (WindSpd|Leg),
-                   ~ . + (WindAngle|Leg) + (WindSpd|Leg),
-                   # Both
-                   ~ . + (WindAngle|DeployID) + (WindAngle|Leg),
-                   ~ . + (WindSpd|DeployID) + (WindSpd|Leg),
-                   ~ . + (WindAngle|DeployID) + (WindSpd|Leg),
-                   ~ . + (WindSpd|DeployID) + (WindAngle|Leg))
+                   ~ . + (1|Leg))
 ```
 
 ```{r fit_re_os, eval = FALSE}
@@ -731,25 +680,25 @@ re.os.summ <- foreach(f = re.os.form,
 kable(re.os.summ, digits = 3)
 ```
 
-Based on AIC the top ranked FV random effects structure is (M|B). (1|B) had delta AIC of 1.806.
+Based on AIC the top ranked FV random effects structure is (1|B).
 
 ## Determine optimal fixed effects structure
 Using the optimal random effects structure, determine best fitting fixed effects structure
 ```{r setup_fe_os}
 # Formula of optimal random effects structure
-re.os.optim <- MeanODBA ~ (WindSpd|DeployID)
+re.os.optim <- MeanODBA ~ (1|DeployID)
 # List to store fixed effects model formulae
-me.os.form <- list(list(~ . + WindAngle * WindSpd, re.os.optim),
-                list(~ . + WindAngle + WindSpd, re.os.optim),
-                list(~ . + WindSpd, re.os.optim))
+me.os.form <- list(list(~ . + poly(WindAngle, 2) * WindSpd, re.os.optim),
+                   list(~ . + poly(WindAngle, 2) + WindSpd, re.os.optim),
+                   list(~ . + WindSpd, re.os.optim),
+                   list(~ . + poly(WindAngle, 2), re.os.optim))
 ```
 
 ```{r fit_me_os, eval = FALSE}
 # Fit models
 modCl <- makeCluster(detectCores() - 1, type = 'FORK')
 registerDoParallel(modCl)
-me.os.mod <- foreach(f = me.os.form,
-                     i = seq_along(re.os.form)) %dopar% {
+me.os.mod <- foreach(f = me.os.form) %dopar% {
   # Update 
   mod.formula <- update.formula(f[[2]], f[[1]])
   tryCatch(glmmadmb(mod.formula, segSample, family = 'gaussian'), error = function(e) NULL)
@@ -761,7 +710,7 @@ save(me.os.mod, file = '../data/out/Models/MEOSmodels.RData')
 ```
 
 ```{r summarize_me_os}
-load('../data/out/Models/MEmodels.RData')
+load('../data/out/Models/MEOSmodels.RData')
 # Summarize models by AIC
 me.os.summ <- foreach(f = me.os.form,
                       m = me.os.mod, 
@@ -791,14 +740,58 @@ kable(me.os.summ, digits = 3)
 
 # Model comparison
 ```{r mod_comp}
-# FV model: FlapRatio ~ Tailwind * Crosswind + (1|DeployID)
-fv.mod <- me.fv.mod[[1]]
-# FS model: FlapRatio ~ WindAngle + WindSpd + (1|DeployID)
+# FV model: FlapRatio ~ poly(Tailwind, 2) + (1|DeployID)
+fv.mod <- me.fv.mod[[3]]
+# FS model: FlapRatio ~ poly(WindAngle, 2) + WindSpd + (1|DeployID)
 fs.mod <- me.fs.mod[[2]]
-# OV model: MeanODBA ~ Tailwind + Crosswind + (Tailwind|DeployID) + (Tailwind|Leg)
-ov.mod <- me.ov.mod[[2]]
-# OS model: MeanODBA ~ WindAngle * WindSpd + (WindSpd|DeployID)
-os.mod <- me.os.mod[[1]]
+# OV model: MeanODBA ~ poly(Tailwind, 2) * Crosswind + (1|DeployID)
+ov.mod <- me.ov.mod[[1]]
+# OS model: MeanODBA ~ poly(WindAngle, 2) + WindSpd + (1|DeployID)
+os.mod <- me.os.mod[[2]]
 
-AIC(fv.mod, fs.mod, ov.mod, os.mod)
+AIC(fv.mod, fs.mod)
+AIC(ov.mod, os.mod)
+
+viz.model <- function(model) {
+  grain <- 20
+  response <- lhs(formula(model))
+  
+  if(!is.na(grep('Tailwind', rhs(formula(model))) || 
+            grep('Crosswind', rhs(formula(model))))) {
+    predX <- 'Tailwind'
+    predY <- 'Crosswind'
+    x <- seq(-12, 12, length.out = grain)
+    y <- seq(0, 12, length.out = grain)
+  } else {
+    predX <- 'WindAngle'
+    predY <- 'WindSpd'
+    x <- seq(0, pi, length.out = grain)
+    y <- seq(0, 15, length.out = grain)
+  }
+  
+  data <- expand.grid(x = x, y = y) %>%
+    rename(!!predX := x, !!predY := y) %>%
+    mutate(!!response := predict(model, newdata = ., type = 'response'))
+  
+  p <- ggplot(data, aes_(x = as.name(predX), y = as.name(predY))) +
+    geom_raster(aes_(fill = as.name(response))) +
+    geom_contour(aes_(z = as.name(response))) +
+    labs(title = format(formula(model))) + 
+    theme(plot.title = element_text(size = 10))
+  
+  if(predX == 'WindAngle') {
+    p + scale_x_continuous(breaks = pi/4 *0:4,
+                           labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                           name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+  } else {
+    p
+  }
+}
+
+viz.model(fv.mod)
+viz.model(fs.mod)
+viz.model(ov.mod)
+viz.model(os.mod)
 ```
+
+OS outperforms OV and FS outperforms FV. 
