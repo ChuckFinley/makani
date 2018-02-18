@@ -15,7 +15,8 @@ output: html_document
 ```{r setup, message = FALSE}
 knitr::opts_chunk$set(
   message = FALSE,
-  warning = FALSE
+  warning = FALSE,
+  cache = TRUE
 )
 library(dplyr)
 library(lubridate)
@@ -112,8 +113,7 @@ ggplot(segSample, aes(x = Tailwind, y = FlapRatio)) +
   geom_point() +
   geom_smooth(method = 'loess') +
   labs(x = 'Tailwind (m/s)',
-       y = 'Flap Ratio',
-       title = 'Flap ratio decreases with tailwind speed') +
+       y = 'Flap Ratio') +
   theme(legend.position = 'bottom')
 
 # F ~ C
@@ -122,8 +122,7 @@ ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = factor(Tailwind > 0,
   geom_smooth(method = 'loess') +
   labs(x = 'Crosswind (m/s)',
        y = 'Flap Ratio',
-       color = 'Tailwind/Headwind',
-       title = 'Flap Ratio Converges in Increasing Crosswinds ') +
+       color = 'Tailwind/Headwind') +
   theme(legend.position = 'bottom')
 
 # F ~ T:C
@@ -161,8 +160,7 @@ ggplot(segSample, aes(x = WindAngle, y = FlapRatio, color = WindSpd)) +
   geom_point() +
   geom_smooth(method = 'loess') +
   labs(x = 'Wind Angle',
-       y = 'FlapRatio',
-       title = 'Mean ODBA decreases with tailwinds, flat with headwinds') +
+       y = 'FlapRatio') +
   theme(legend.position = 'bottom') +
   scale_x_continuous(breaks = pi/4 *0:4,
                      labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
@@ -795,3 +793,84 @@ viz.model(os.mod)
 ```
 
 OS outperforms OV and FS outperforms FV. 
+
+```{r groundspeed}
+ggplot(segSample, aes(x = Tailwind, y = meanSpd)) +
+  geom_point(aes(color = DeployID)) +
+  geom_smooth(color = 'blue', se = FALSE) +
+  geom_smooth(color = 'red', se = FALSE, method = lm, formula = y ~ x) +
+  geom_smooth(color = 'green', se = FALSE, method = lm, formula = y ~ poly(x, 2))
+
+grdspd.mod <- glmmadmb(meanSpd ~ poly(Tailwind, 2) + (1|DeployID), data = segSample, family = 'gaussian')
+
+segSample %>%
+  mutate(predicted = predict(grdspd.mod, type = 'response')) %>%
+  ggplot(aes(x = Tailwind, y = predicted)) +
+  geom_point(data = segSample, aes(y = meanSpd)) +
+  geom_line() + 
+  labs(x = 'Tailwind (m/s)',
+       y = 'Ground speed (m/s)') +
+  coord_fixed() + 
+  expand_limits(y = c(9, 15))
+```
+
+```{r trip_az, eval = FALSE}
+# ODBA cost of parallel vs perpendicular trips in 8m/s winds over 50km
+d <- 50e3
+example.data <- data.frame(WindAngleOut = seq(0, pi/2, length.out = 10),
+                           WindSpd = 8) %>%
+  mutate(WindAngleIn = pi - WindAngleOut,
+         TailwindOut = WindSpd * cos(WindAngleOut),
+         TailwindIn = WindSpd * cos(WindAngleIn))
+
+fitted.data <- example.data %>%
+  mutate(ODBAout = predict(os.mod, 
+                           newdata = rename(example.data, WindAngle = WindAngleOut), 
+                           type = 'response'),
+         ODBAin = predict(os.mod, 
+                          newdata = rename(example.data, WindAngle = WindAngleIn), 
+                          type = 'response'),
+         GrdSpdOut = predict(grdspd.mod, 
+                             newdata = rename(example.data, Tailwind = TailwindOut),
+                             type = 'response'),
+         GrdSpdIn = predict(grdspd.mod, 
+                             newdata = rename(example.data, Tailwind = TailwindIn),
+                             type = 'response'),
+         DurationOut = d / GrdSpdOut,
+         DurationIn = d / GrdSpdIn,
+         EnergyOut = DurationOut * ODBAout,
+         EnergyIn = DurationIn * ODBAin,
+         EnergyTotal = EnergyOut + EnergyIn)
+
+gather(example.data, ODBAdir, ODBAval, ODBAout:ODBAin) %>%
+  ggplot(aes(x = WindAngleOut, y = ODBAval, color = ODBAdir)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = pi/8 * 0:4,
+                     labels = c('0', 'pi/8', 'pi/4', '3pi/4', 'pi/2'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Crosswind') +
+  labs(y = 'Mean ODBA (m/s^2)')
+
+gather(example.data, GrdSpdDir, GrdSpdVal, GrdSpdOut:GrdSpdIn) %>%
+  ggplot(aes(x = WindAngleOut, y = GrdSpdVal, color = GrdSpdDir)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = pi/8 * 0:4,
+                     labels = c('0', 'pi/8', 'pi/4', '3pi/4', 'pi/2'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Crosswind') +
+  labs(y = 'Ground Speed (m/s)')
+
+gather(example.data, DurationDir, DurationVal, DurationOut:DurationIn) %>%
+  ggplot(aes(x = WindAngleOut, y = DurationVal / 3600, color = DurationDir)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = pi/8 * 0:4,
+                     labels = c('0', 'pi/8', 'pi/4', '3pi/4', 'pi/2'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Crosswind') +
+  labs(y = 'Duration (hours)')
+
+gather(example.data, EnergyDir, EnergyVal, EnergyOut:EnergyTotal) %>%
+  ggplot(aes(x = WindAngleOut, y = EnergyVal, color = EnergyDir)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = pi/8 * 0:4,
+                     labels = c('0', 'pi/8', 'pi/4', '3pi/4', 'pi/2'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Crosswind') +
+  labs(y = 'Energy')
+```

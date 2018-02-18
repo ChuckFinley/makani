@@ -1,0 +1,365 @@
+---
+title: "Flight Model"
+author: "Max Czapanskiy"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+knit: (function(inputFile, encoding) { 
+         out_dir <- '../analysis/reports';
+         out_file <- file.path(dirname(inputFile), out_dir, 'FlightModelNoLeg.html');
+         rmarkdown::render(inputFile,
+                           encoding = encoding, 
+                           output_file = out_file);
+       })
+output: html_document
+---
+  
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE
+)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(foreach)
+library(RSQLite)
+library(doParallel)
+library(iterators)
+library(glmmADMB)
+library(knitr)
+library(akima)
+library(rgdal)
+library(geosphere)
+library(spdep)
+library(mosaic)
+library(rlang)
+
+# dplyr connections
+MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
+metadata_db <- tbl(MHI_db, 'Metadata')
+tidytracks_db <- tbl(MHI_db, 'TidyTracks')
+acceleration_db <- tbl(MHI_db, 'SegmentACC')
+
+POSIX.origin = ymd('1970-01-01', tz = 'UTC')
+
+# Load data from earlier reports
+load('../data/out/TransitSegments/Segments.RData')
+load('../data/out/TransitSegments/ValidSegments.RData')
+load('../data/out/TransitSegments/AccSegments.RData')
+load('../data/out/TransitSegments/WindSegments.RData')
+
+select <- dplyr::select
+```
+
+How do seabirds modulate flight behavior in response to wind? This report seeks to answer that question by modeling the flap ratio as a function of tail- (`T`) and crosswinds (`C`) with individual bird (`B`) and trip (`R`) as random effects.
+
+First up: segment sampling. Randomly select both an outbound and inbound segment from each eligible trip (i.e. trips _both_ outbound and inbound segments).
+```{r sample_segments}
+# Which trips have both outbound and inbound legs?
+bothLegs <- windSegments %>%
+  group_by(DeployID, TripID, Leg) %>%
+  summarize(N = n()) %>%
+  ungroup %>%
+  spread(Leg, N) %>%
+  mutate(Both = !is.na(Inbound) & !is.na(Outbound)) %>%
+  filter(Both)
+
+set.seed(211)
+segSample <- windSegments %>%
+  semi_join(bothLegs, by = 'TripID') %>%
+  group_by(TripID, Leg) %>%
+  sample_n(1) %>%
+  ungroup %>%
+  mutate(AirSpd = sqrt((meanSpd - Tailwind)^2 + Crosswind^2),
+         Leg = factor(Leg)) 
+
+save(segSample, file = '../data/out/TransitSegments/SegSample.RData')
+```
+
+Let's look at the distribution of segments across deployments, time, and location.
+```{r view_segments}
+# Across deployments
+ggplot(segSample, aes(x = DeployID)) +
+  geom_bar() +
+  labs(title = 'Segment sample: 14-48 segments from 12 individuals')
+
+# Through time
+ggplot(segSample, aes(x = Start, y = DeployID)) +
+  geom_point() +
+  labs(x = 'Date of Segment',
+       title = 'Distribution of segments between May 28 and July 17')
+
+# In space
+ColLon <- -159.3997
+ColLat <- 22.22888
+LonExtent <- c(min(ColLon, segSample$Longitude), max(ColLon, segSample$Longitude))
+LatExtent <- c(min(ColLat, segSample$Latitude), max(ColLat, segSample$Latitude))
+hi_shp <- readOGR('../data/coastline/ne_10m_coastline/', 'ne_10m_coastline')
+hi_df <- fortify(hi_shp) %>%
+  filter(between(long, LonExtent[1], LonExtent[2]),
+         between(lat, LatExtent[1], LatExtent[2]))
+ggplot(segSample) +
+  geom_path(data = hi_df, aes(x = long, y = lat, group = group)) +
+  geom_point(aes(x = Longitude, y = Latitude, color = Start)) +
+  coord_map() +
+  theme(legend.position = 'bottom')
+```
+
+Now a look at the response varibles (F, O) in response to the predictor variables (T, C, A, M)
+```{r plot_vars_FV}
+# F ~ T
+ggplot(segSample, aes(x = Tailwind, y = FlapRatio)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind (m/s)',
+       y = 'Flap Ratio') +
+  theme(legend.position = 'bottom')
+
+# F ~ C
+ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = factor(Tailwind > 0, labels = c('Tailwind', 'Headwind')))) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Crosswind (m/s)',
+       y = 'Flap Ratio',
+       color = 'Tailwind/Headwind') +
+  theme(legend.position = 'bottom')
+
+# F ~ T:C
+ggplot(segSample, aes(x = Tailwind * Crosswind, y = FlapRatio)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind * Crosswind (m^2/s^2)',
+       y = 'Flap Ratio',
+       title = 'Flap ratio relationship to tailwind:crosswind') +
+  theme(legend.position = 'bottom')
+
+Cross <- seq(0, 11, by = 1); Cstep <- Cross[2] - Cross[1];
+Tail <- seq(-11, 11, by = 1); Tstep <- Tail[2] - Tail[1];
+expand.grid(Crosswind = Cross, Tailwind = Tail) %>%
+  mutate(FlapRatio = mapply(Tailwind, Crosswind,
+                            FUN = function(T1, C1) {
+                              points <- filter(segSample,
+                                               Tailwind >= T1,
+                                               Tailwind < T1 + Tstep,
+                                               Crosswind >= C1,
+                                               Crosswind < C1 + Cstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$FlapRatio, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu')
+```
+
+```{r plot_vars_FS}
+# F ~ A
+ggplot(segSample, aes(x = WindAngle, y = FlapRatio, color = WindSpd)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Angle',
+       y = 'FlapRatio') +
+  theme(legend.position = 'bottom') +
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+
+# F ~ M
+ggplot(segSample, aes(x = WindSpd, y = FlapRatio, color = WindAngle)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Magnitude (m/s)',
+       y = 'FlapRatio')
+
+# F ~ A * M
+A <- seq(0, pi, length.out = 10)
+Astep <- A[2] - A[1]
+M <- seq(0, 12, by = 1)
+Mstep <- M[2] - M[1];
+expand.grid(WindAngle = A, WindSpd = M) %>%
+  mutate(FlapRatio = mapply(WindAngle, WindSpd,
+                            FUN = function(A1, M1) {
+                              points <- filter(segSample,
+                                               WindAngle >= A1,
+                                               WindAngle < A1 + Astep,
+                                               WindSpd >= M1,
+                                               WindSpd < M1 + Mstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$FlapRatio, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = WindAngle, y = WindSpd, fill = FlapRatio)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu') + 
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+```
+
+```{r plot_vars_OV}
+# O ~ T
+ggplot(segSample, aes(x = Tailwind, y = MeanODBA)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind (m/s)',
+       y = 'ODBA (m/s^2)') +
+  theme(legend.position = 'bottom')
+
+# O ~ C
+ggplot(segSample, aes(x = Crosswind, y = MeanODBA, color = factor(Tailwind > 0, labels = c('Tailwind', 'Headwind')))) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Crosswind (m/s)',
+       y = 'ODBA (m/s^2)',
+       color = 'Tailwind/Headwind') +
+  theme(legend.position = 'bottom')
+
+# O ~ T:C
+ggplot(segSample, aes(x = Tailwind * Crosswind, y = MeanODBA)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind * Crosswind (m^2/s^2)',
+       y = 'ODBA (m/s^2)') +
+  theme(legend.position = 'bottom')
+
+Cross <- seq(0, 11, by = 1); Cstep <- Cross[2] - Cross[1];
+Tail <- seq(-11, 11, by = 1); Tstep <- Tail[2] - Tail[1];
+expand.grid(Crosswind = Cross, Tailwind = Tail) %>%
+  mutate(MeanODBA = mapply(Tailwind, Crosswind,
+                            FUN = function(T1, C1) {
+                              points <- filter(segSample,
+                                               Tailwind >= T1,
+                                               Tailwind < T1 + Tstep,
+                                               Crosswind >= C1,
+                                               Crosswind < C1 + Cstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$MeanODBA, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = MeanODBA)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu')
+```
+
+```{r plot_vars_OS}
+# O ~ A
+ggplot(segSample, aes(x = WindAngle, y = MeanODBA, color = WindSpd)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Angle',
+       y = 'ODBA (m/s^2)') +
+  theme(legend.position = 'bottom') +
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+
+# O ~ M
+ggplot(segSample, aes(x = WindSpd, y = MeanODBA, color = WindAngle)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Magnitude (m/s)',
+       y = 'ODBA (m/s^2)')
+
+# O ~ A * M
+A <- seq(0, pi, length.out = 10)
+Astep <- A[2] - A[1]
+M <- seq(0, 12, by = 1)
+Mstep <- M[2] - M[1];
+expand.grid(WindAngle = A, WindSpd = M) %>%
+  mutate(ODBA = mapply(WindAngle, WindSpd,
+                            FUN = function(A1, M1) {
+                              points <- filter(segSample,
+                                               WindAngle >= A1,
+                                               WindAngle < A1 + Astep,
+                                               WindSpd >= M1,
+                                               WindSpd < M1 + Mstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$MeanODBA, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = WindAngle, y = WindSpd, fill = ODBA)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu') + 
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+
+```
+
+# Model Fitting
+```{r flight_gamms}
+ftc <- gam(FlapRatio ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = betar(), data = segSample)
+fam <- gam(FlapRatio ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = betar(), data = segSample)
+otc <- gam(MeanODBA ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
+oam <- gam(MeanODBA ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
+
+summary(ftc)
+summary(fam)
+summary(otc)
+summary(oam)
+
+vis.gam(ftc, plot.type = 'contour', type = 'response')
+vis.gam(fam, plot.type = 'contour', type = 'response')
+vis.gam(otc, plot.type = 'contour', type = 'response')
+vis.gam(oam, plot.type = 'contour', type = 'response')
+
+# Visualize both on a angle/speed plot
+grain <- 20
+model_predictions <- expand.grid(WindAngle = seq(0, pi, length.out = grain),
+                                 WindSpd = seq(0, 13, length.out = grain)) %>%
+  mutate(Tailwind = WindSpd * cos(WindAngle),
+         Crosswind = WindSpd * sin(WindAngle),
+         DeployID = 1145) %>%
+  mutate(FTC = predict(ftc, ., 'response'),
+         FAM = predict(fam, ., 'response'))
+
+ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = FTC)) +
+  stat_contour(aes(z = FTC)) +
+  scale_fill_distiller(palette = 'RdBu')
+
+ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = FAM)) +
+  stat_contour(aes(z = FAM)) +
+  scale_fill_distiller(palette = 'RdBu')
+```
+
+# Model Validation
+Use cross validation to see which model (FTC, FAM) is best
+
+```{r model_validation}
+cross_validate <- function() {
+  frac <- 0.8
+
+  fit_data <- sample_frac(segSample, size = frac)
+  check_data <- anti_join(segSample, fit_data, by = 'SegmentID')
+  
+  ftc_frac <- gam(FlapRatio ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = betar(), data = fit_data)
+  fam_frac <- gam(FlapRatio ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = betar(), data = fit_data)
+  
+  pred_data <- check_data %>%
+    mutate(ftc_pred = predict(ftc_frac, ., type = 'response'),
+           fam_pred = predict(fam_frac, ., type = 'response'),
+           ftc_resid = ftc_pred - FlapRatio,
+           fam_resid = fam_pred - FlapRatio)
+  
+  pred_data %>%
+    summarize(ftc_rmse = sqrt(1/n() * sum(ftc_resid^2)),
+              fam_rmse = sqrt(1/n() * sum(fam_resid^2)))
+}
+
+cv_results <- replicate(1e4, cross_validate(), simplify = TRUE) %>%
+  t %>%
+  data.frame %>%
+  mutate_all(as.numeric)
+
+cv_results %>% 
+  gather(model, rmse, ftc_rmse, fam_rmse) %>% 
+  ggplot(aes(x = rmse, color = model)) +
+  geom_density()
+```

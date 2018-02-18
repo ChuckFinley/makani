@@ -86,11 +86,10 @@ Transit segments are the basis of analysis for the flight cost model.
 
 Here we define a transit segment as the following:
 
-* 30 minutes (i.e. 15 consecutive points)
+* 20 minutes (i.e. 10 consecutive points)
 * No gaps longer than 150% of the scheduled sampling rate (i.e. 3 minutes)
 * Standard deviation of speed < 1.5m/s
-* At least 13 of the 15 points are classified as transit by the RST algorithm (Torres et al. 2017)
-* Net displacement of more than 10km
+* At least 9 of the 10 points are classified as transit by the RST algorithm (Torres et al. 2017)
 
 Only single-day trips will be considered.
 
