@@ -1,4 +1,4 @@
----
+1---
 title: "Transit Segments"
 author: "Max Czapanskiy"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
@@ -122,7 +122,7 @@ tracks <- tidytracks_db %>%
 # meanBear: calculates the mean bearing along the segment. Fits a linear regression to the 
 #   coordinates and gets the bearing from (first longitude, first fitted latitude) to
 #   (last longitude, last fitted latitude).
-window <- 15
+window <- 10
 leadWindow <- window - 1
 getLeg <- function(t, tmax) {
   if(t < tmax) 
@@ -141,7 +141,7 @@ rollapply2 <- function(...) {
   rollapply(..., fill = NA, partial = FALSE, align = 'left')
 }
 
-# segments0: ALL 15-point segments within tracks
+# segments0: ALL 10-point segments within tracks
 segments0 <- tracks %>%
   arrange(TripID, TimestampUTC) %>%
   group_by(TripID) %>%
@@ -171,8 +171,7 @@ segments <- segments0 %>%
   na.omit %>%
   filter(maxGap <= 180,
          sdSpd < 1.5,
-         nTransit > 12,
-         displacement > 1e4)
+         nTransit >= 9)
 
 # Export tracks, segments0, and segments
 write.csv(tracks, '../data/out/TransitSegments/Tracks.csv', row.names = FALSE)
@@ -210,7 +209,7 @@ segments %>%
        title = 'Cumulative Temporal Distribution of Segments')
 ```
 
-Transit segments are unevenly distributed among individuals due to differences in deployment duration. At the low end, 1147 and 1156 both have ~100 segments, while 1159 has almost 2,000. Temporally, there is an inflection point around the middle of July. Looking at these plots, I suggest excluding deployments 1147, 1155, and 1156 as questionable quality and set a temporal cut off at July 17th (50 days after deployment) to keep data internally consistent.
+Transit segments are unevenly distributed among individuals due to differences in deployment duration. At the low end, 1147 and 1156 both have ~150-200 segments, while 1153 and 1159 have around 2,700. Temporally, there is an inflection point around the middle of July. Looking at these plots, I suggest excluding deployments 1147, 1155, and 1156 as questionable quality and set a temporal cut off at July 17th (50 days after deployment) to keep data internally consistent.
 
 Using the DeployID and date restrictions, we find the following:
 
@@ -261,10 +260,10 @@ segPerTrip %>%
   theme(legend.position = 'bottom')
 ```
 
- * 62 trips only have outbound segments
- * 138 trips only have inbound segments
- * 169 trips have both segments
- * Tracked birds had between 7 and 24 trips with both outbound and inbound segments
+ * 42 trips only have outbound segments
+ * 96 trips only have inbound segments
+ * 263 trips have both segments
+ * Tracked birds had between 12 and 28 trips with both outbound and inbound segments
  
 ## Transit Acceleration
 Pick out the acceleration data from the transit segments to plot raw values and examine flight behavior patterns. Calibrate the acceleration data to m/s^2 and separate the static from dynamic acceleration. The results are written to a table called SegmentACC.
