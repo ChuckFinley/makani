@@ -118,7 +118,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Wind Projection</h1>
 <h4 class="author"><em>Max Czapanskiy</em></h4>
-<h4 class="date"><em>21 October, 2017</em></h4>
+<h4 class="date"><em>20 February, 2018</em></h4>
 
 </div>
 
@@ -390,9 +390,11 @@ windSegments &lt;- windSegments0 %&gt;%
   # Drop the six segments outside the model's spatial range
   na.omit %&gt;%
   mutate(Tailwind = project(bearing, uWind, vWind),
-         Crosswind = reject(uWind, vWind, Tailwind))
+         Crosswind = reject(uWind, vWind, Tailwind),
+         WindSpd = sqrt(uWind^2 + vWind^2),
+         WindAngle = atan2(Crosswind, Tailwind))
 
-save(windSegments, file = '../data/out/WindSegments.RData')</code></pre>
+save(windSegments, file = '../data/out/TransitSegments/WindSegments.RData')</code></pre>
 <p>A few plots to visually validate the projection/rejection calculations</p>
 <pre class="r"><code># Verify that tailwind/crosswind magnitude equals wind magnitude
 # The histogram of mag([U C]) - mag([T C]) should have a narrow range
