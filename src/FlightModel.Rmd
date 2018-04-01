@@ -15,19 +15,25 @@ output: html_document
 ```{r setup, message = FALSE}
 knitr::opts_chunk$set(
   message = FALSE,
-  warning = FALSE
+  warning = FALSE,
+  cache = TRUE
 )
-library(dplyr)
+library(tidyverse)
 library(lubridate)
-library(tidyr)
-library(ggplot2)
-library(foreach)
 library(RSQLite)
-library(doParallel)
-library(iterators)
-library(glmmADMB)
 library(knitr)
 library(akima)
+library(rgdal)
+library(geosphere)
+library(spdep)
+library(mosaic)
+library(rlang)
+library(mgcv)
+library(lme4)
+library(grid)
+library(gridExtra)
+library(ggthemes)
+library(visreg)
 
 # dplyr connections
 MHI_db <- src_sqlite('../data/MHI_GPS.sqlite')
@@ -46,9 +52,9 @@ load('../data/out/TransitSegments/WindSegments.RData')
 select <- dplyr::select
 ```
 
-How do seabirds modulate flight behavior in response to wind? This report seeks to answer that question by modeling the flap ratio as a function of tail- (T), crosswinds (C), and trip leg (T) with BirdID as a random effect.
+How do seabirds modulate flight behavior in response to wind? This report seeks to answer that question by modeling the flap ratio as a function of tail- (`T`) and crosswinds (`C`) with individual bird (`B`) and trip (`R`) as random effects.
 
-First up: segment sampling. Randomly select both an outbound and inbound segment from each eligible trip (i.e. not trips with just outbound or inbound segments).
+First up: segment sampling. Randomly select both an outbound and inbound segment from each eligible trip (i.e. trips _both_ outbound and inbound segments).
 ```{r sample_segments}
 # Which trips have both outbound and inbound legs?
 bothLegs <- windSegments %>%
@@ -64,7 +70,9 @@ segSample <- windSegments %>%
   semi_join(bothLegs, by = 'TripID') %>%
   group_by(TripID, Leg) %>%
   sample_n(1) %>%
-  ungroup
+  ungroup %>%
+  mutate(AirSpd = sqrt((meanSpd - Tailwind)^2 + Crosswind^2),
+         Leg = factor(Leg)) 
 
 save(segSample, file = '../data/out/TransitSegments/SegSample.RData')
 ```
@@ -83,470 +91,710 @@ ggplot(segSample, aes(x = Start, y = DeployID)) +
        title = 'Distribution of segments between May 28 and July 17')
 
 # In space
-## TODO
-## Make a map of Hawaii with points for the segments, color-coded by time.
+ColLon <- -159.3997
+ColLat <- 22.22888
+LonExtent <- c(min(ColLon, segSample$Longitude), max(ColLon, segSample$Longitude))
+LatExtent <- c(min(ColLat, segSample$Latitude), max(ColLat, segSample$Latitude))
+hi_shp <- readOGR('../data/coastline/ne_10m_coastline/', 'ne_10m_coastline')
+hi_df <- fortify(hi_shp) %>%
+  filter(between(long, LonExtent[1], LonExtent[2]),
+         between(lat, LatExtent[1], LatExtent[2]))
+ggplot(segSample) +
+  geom_path(data = hi_df, aes(x = long, y = lat, group = group)) +
+  geom_point(aes(x = Longitude, y = Latitude, color = Start)) +
+  coord_map() +
+  theme(legend.position = 'bottom')
 ```
 
-Now a look at the response varible (FlapRatio) in response to the predictor variables (T, C, L)
-```{r plot_vars}
-# F ~ T by L
-ggplot(segSample, aes(x = Tailwind, y = FlapRatio, color = Leg)) +
+```{r plot_distributions}
+angle_breaks <- pi/4 * 0:4
+angle_lbls <- c('0', 
+                expr(pi/4),
+                expr(pi/2),
+                expr(3*pi/4),
+                expr(pi))
+angle_scale <- scale_x_continuous(breaks = angle_breaks,
+                                  labels = angle_lbls,
+                                  name = '(Tailwind)  <---  Wind Angle  --->  (Headwind)')
+p3 <- ggplot(segSample, aes(x = WindAngle)) +
+  geom_histogram(binwidth = pi/16, boundary = 0) + 
+  angle_scale +
+  labs(y = 'frequency') +
+  theme_few(base_size = 9)
+png('../analysis/figures/Fig3.png', width = 85, height = 85, units = 'mm', res = 300)
+print(p3)
+dev.off()
+  
+ggplot(segSample, aes(x = WindSpd)) +
+  geom_histogram(binwidth = 0.5, boundary = 0) +
+  labs(x = 'Wind Speed (m/s)')
+
+mean(segSample$WindSpd)
+sd(segSample$WindSpd)
+
+p4a <- ggplot(segSample, aes(x = FlapRatio)) +
+  geom_histogram(binwidth = 0.02, boundary = 0) +
+  annotate('text', x = 0.05, y = 30, label = 'bold(a)', size = 8, parse = TRUE) +
+  scale_x_continuous(breaks = 1:6 / 10,
+                     labels = paste0(10 * 1:6, '%')) +
+  labs(x = 'Flap Ratio',
+       y = 'frequency') +
+  theme_few(base_size = 9)
+
+p4b <- ggplot(segSample, aes(x = MeanODBA)) +
+  geom_histogram(binwidth = 0.2, boundary = 0) +
+  annotate('text', x = 4.5, y = 28, label = 'bold(b)', size = 8, parse = TRUE) +
+  labs(x = 'ODBA (m/s^2)',
+       y = '') +
+  theme_few(base_size = 9)
+
+png('../analysis/figures/Fig4.png', width = 170, height = 85, units = 'mm', res = 300)
+pushViewport(viewport(layout = grid.layout(1, 2)))
+print(p4a, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(p4b, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+dev.off()
+
+quantile(segSample$FlapRatio)
+mean(segSample$FlapRatio)
+sd(segSample$FlapRatio)
+quantile(segSample$MeanODBA)
+mean(segSample$MeanODBA)
+sd(segSample$MeanODBA)
+
+ggplot(segSample, aes(x = meanSpd)) +
+  geom_histogram(binwidth = 1, boundary = 0) +
+  labs(x = 'Ground speed (m/s)')
+
+quantile(segSample$meanSpd)
+mean(segSample$meanSpd)
+sd(segSample$meanSpd)
+```
+
+Now a look at the response varibles (F, O) in response to the predictor variables (T, C, A, M)
+```{r plot_vars_FV}
+# F ~ T
+ggplot(segSample, aes(x = Tailwind, y = FlapRatio)) +
   geom_point() +
   geom_smooth(method = 'loess') +
   labs(x = 'Tailwind (m/s)',
-       y = 'Flap Ratio',
-       title = 'Flap ratio decreases with tailwind speed') +
+       y = 'Flap Ratio') +
   theme(legend.position = 'bottom')
 
-# F ~ C by L
-ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = Leg)) +
+# F ~ C
+ggplot(segSample, aes(x = Crosswind, y = FlapRatio, color = factor(Tailwind > 0, labels = c('Tailwind', 'Headwind')))) +
   geom_point() +
   geom_smooth(method = 'loess') +
   labs(x = 'Crosswind (m/s)',
        y = 'Flap Ratio',
-       title = 'Flap ratio relationship to crosswind speed varies by leg') +
+       color = 'Tailwind/Headwind') +
   theme(legend.position = 'bottom')
 
-# F ~ T:C by L
-interp.seg.out <- with(filter(segSample, Leg == 'Outbound'), 
-                       interp(Tailwind, Crosswind, FlapRatio))
-expand.grid(i = seq(interp.seg.out$x),
-            j = seq(interp.seg.out$y)) %>% 
-  mutate(Tailwind = sapply(i, function(a) interp.seg.out$x[a]),
-         Crosswind = sapply(j, function(b) interp.seg.out$y[b]), 
-         FlapRatio = mapply(function(a, b) interp.seg.out$z[a, b], i, j)) %>%
-  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
-  geom_tile() +
-  xlim(-12, 12) +
-  ylim(0, 11) +
-  scale_fill_distiller(palette = 'RdBu') +
-  labs(title = 'Interpolated Outbound Flap Ratios')
-
-interp.seg.in <- with(filter(segSample, Leg == 'Inbound'), 
-                       interp(Tailwind, Crosswind, FlapRatio))
-expand.grid(i = seq(interp.seg.in$x),
-            j = seq(interp.seg.in$y)) %>% 
-  mutate(Tailwind = sapply(i, function(a) interp.seg.in$x[a]),
-         Crosswind = sapply(j, function(b) interp.seg.in$y[b]), 
-         FlapRatio = mapply(function(a, b) interp.seg.in$z[a, b], i, j)) %>%
-  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
-  geom_tile() +
-  xlim(-12, 12) +
-  ylim(0, 11) +
-  scale_fill_distiller(palette = 'RdBu') +
-  labs(title = 'Interpolated Inbound Flap Ratios')
-
-# Distribution of F by T, C categories
-segSample %>%
-  mutate(Tcat = factor(ifelse(Tailwind < 0, 'Headwind', 'Tailwind')),
-         Ccat = factor(ifelse(Crosswind < median(Crosswind), 'Low Crosswind', 'High Crosswind'),
-                       levels = c('Low Crosswind', 'High Crosswind'))) %>%
-  ggplot(aes(x = Ccat, y = FlapRatio, fill = Leg)) + 
-  geom_boxplot() +
-  facet_grid(. ~ Tcat) +
-  labs(x = '',
-       title = 'Effect of crosswinds by head- and tailwinds') +
+# F ~ T:C
+ggplot(segSample, aes(x = Tailwind * Crosswind, y = FlapRatio)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind * Crosswind (m^2/s^2)',
+       y = 'Flap Ratio',
+       title = 'Flap ratio relationship to tailwind:crosswind') +
   theme(legend.position = 'bottom')
+
+Cross <- seq(0, 11, by = 1); Cstep <- Cross[2] - Cross[1];
+Tail <- seq(-11, 11, by = 1); Tstep <- Tail[2] - Tail[1];
+expand.grid(Crosswind = Cross, Tailwind = Tail) %>%
+  mutate(FlapRatio = mapply(Tailwind, Crosswind,
+                            FUN = function(T1, C1) {
+                              points <- filter(segSample,
+                                               Tailwind >= T1,
+                                               Tailwind < T1 + Tstep,
+                                               Crosswind >= C1,
+                                               Crosswind < C1 + Cstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$FlapRatio, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = FlapRatio)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu')
 ```
 
-## Determine random effects structure
-Starting with the maximal fixed effects model `F ~ T * C * L` rank the potential random effects structures (where TripID < DeployID) by AIC
+```{r plot_vars_FS}
+# F ~ A
+p5 <- ggplot(segSample, aes(x = WindAngle, y = FlapRatio)) +
+  geom_point(color = 'gray') +
+  geom_smooth(method = 'loess', se = FALSE, color = 'black') +
+  labs(x = 'Wind Angle',
+       y = 'Flap Ratio') +
+  scale_y_continuous(breaks = 1:5 / 10,
+                     labels = paste0(10 * 1:5, '%')) +
+  angle_scale +
+  theme_few(base_size = 9)
 
-```{r setup_random_effects}
-# List to store random effects model formulae
-re.form <- list()
-# Formula of maximal fixed effects
-fe.max <- FlapRatio ~ Tailwind * Crosswind * Leg
+print(p5)
 
-# Intercepts
-re.form[[1]] <- ~ . + (1|DeployID)
-re.form[[2]] <- ~ . + (1|TripID)
+png('../analysis/figures/Fig5.png', width = 85, height = 85, units = 'mm', res = 300)
+print(p5)
+dev.off()
 
-# Slopes by DeployID
-re.form[[3]] <- ~ . +  (Tailwind|DeployID)
-re.form[[4]] <- ~ . + (Crosswind|DeployID)
-re.form[[5]] <- ~ . + (Leg|DeployID)
+# F ~ M
+ggplot(segSample, aes(x = WindSpd, y = FlapRatio, color = WindAngle)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Magnitude (m/s)',
+       y = 'FlapRatio')
 
-# Slopes by TripID
-re.form[[6]] <- ~ . + (Tailwind|TripID)
-re.form[[7]] <- ~ . + (Crosswind|TripID)
-re.form[[8]] <- ~ . + (Leg|TripID)
+# F ~ A * M
+A <- seq(0, pi, length.out = 10)
+Astep <- A[2] - A[1]
+M <- seq(0, 12, by = 1)
+Mstep <- M[2] - M[1];
+expand.grid(WindAngle = A, WindSpd = M) %>%
+  mutate(FlapRatio = mapply(WindAngle, WindSpd,
+                            FUN = function(A1, M1) {
+                              points <- filter(segSample,
+                                               WindAngle >= A1,
+                                               WindAngle < A1 + Astep,
+                                               WindSpd >= M1,
+                                               WindSpd < M1 + Mstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$FlapRatio, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = WindAngle, y = WindSpd, fill = FlapRatio)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu') + 
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+```
 
-# Multiple slopes by DeployID
-re.form[[9]] <- ~ . + (Tailwind|DeployID) + (Crosswind|DeployID)
-re.form[[10]] <- ~ . + (Tailwind|DeployID) + (Leg|DeployID)
-re.form[[11]] <- ~ . + (Crosswind|DeployID) + (Leg|DeployID)
+```{r plot_vars_OV}
+# O ~ T
+ggplot(segSample, aes(x = Tailwind, y = MeanODBA)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind (m/s)',
+       y = 'ODBA (m/s^2)') +
+  theme(legend.position = 'bottom')
 
-# Multiple slopes by TripID
-re.form[[12]] <- ~ . + (Tailwind|DeployID) + (Crosswind|TripID)
-re.form[[13]] <- ~ . + (Tailwind|TripID) + (Leg|TripID)
-re.form[[14]] <- ~ . + (Crosswind|TripID) + (Leg|TripID)
+# O ~ C
+ggplot(segSample, aes(x = Crosswind, y = MeanODBA, color = factor(Tailwind > 0, labels = c('Tailwind', 'Headwind')))) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Crosswind (m/s)',
+       y = 'ODBA (m/s^2)',
+       color = 'Tailwind/Headwind') +
+  theme(legend.position = 'bottom')
 
-# Interaction by DeployID
-re.form[[15]] <- ~ . + (Tailwind:Crosswind|DeployID)
-re.form[[16]] <- ~ . + (Tailwind:Leg|DeployID)
-re.form[[17]] <- ~ . + (Crosswind:Leg|DeployID)
+# O ~ T:C
+ggplot(segSample, aes(x = Tailwind * Crosswind, y = MeanODBA)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Tailwind * Crosswind (m^2/s^2)',
+       y = 'ODBA (m/s^2)') +
+  theme(legend.position = 'bottom')
 
-# Interaction by TripID
-re.form[[18]] <- ~ . + (Tailwind:Crosswind|TripID)
-re.form[[19]] <- ~ . + (Tailwind:Leg|TripID)
-re.form[[20]] <- ~ . + (Crosswind:Leg|TripID)
+Cross <- seq(0, 11, by = 1); Cstep <- Cross[2] - Cross[1];
+Tail <- seq(-11, 11, by = 1); Tstep <- Tail[2] - Tail[1];
+expand.grid(Crosswind = Cross, Tailwind = Tail) %>%
+  mutate(MeanODBA = mapply(Tailwind, Crosswind,
+                            FUN = function(T1, C1) {
+                              points <- filter(segSample,
+                                               Tailwind >= T1,
+                                               Tailwind < T1 + Tstep,
+                                               Crosswind >= C1,
+                                               Crosswind < C1 + Cstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$MeanODBA, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = Tailwind, y = Crosswind, fill = MeanODBA)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu')
+```
 
-# Function for converting formulae to strings
-char.formula <- function(f) {
-  mod.parts <- as.character(f) %>%
-    gsub('FlapRatio', 'F', .) %>%
-    gsub('Tailwind', 'T', .) %>%
-    gsub('Crosswind', 'C', .) %>%
-    gsub('Leg', 'L', .) %>%
-    gsub('DeployID', 'B', .) %>%
-    gsub('TripID', 'R', .)
-  if(length(mod.parts) == 2)
-    paste(mod.parts, collapse = ' ')
-  else
-    paste(mod.parts[1], mod.parts[3])
+```{r plot_vars_OS}
+# O ~ A
+ggplot(segSample, aes(x = WindAngle, y = MeanODBA)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Angle',
+       y = 'ODBA (m/s^2)') +
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+
+# O ~ M
+ggplot(segSample, aes(x = WindSpd, y = MeanODBA, color = WindAngle)) +
+  geom_point() +
+  geom_smooth(method = 'loess') +
+  labs(x = 'Wind Magnitude (m/s)',
+       y = 'ODBA (m/s^2)')
+
+# O ~ A * M
+A <- seq(0, pi, length.out = 10)
+Astep <- A[2] - A[1]
+M <- seq(0, 12, by = 1)
+Mstep <- M[2] - M[1];
+expand.grid(WindAngle = A, WindSpd = M) %>%
+  mutate(ODBA = mapply(WindAngle, WindSpd,
+                            FUN = function(A1, M1) {
+                              points <- filter(segSample,
+                                               WindAngle >= A1,
+                                               WindAngle < A1 + Astep,
+                                               WindSpd >= M1,
+                                               WindSpd < M1 + Mstep)
+                              if(nrow(points) == 0) 
+                                NA 
+                              else
+                                mean(points$MeanODBA, na.rm = TRUE)
+                            })) %>% 
+  ggplot(aes(x = WindAngle, y = WindSpd, fill = ODBA)) +
+  geom_raster() +
+  scale_fill_distiller(palette = 'RdYlBu') + 
+  scale_x_continuous(breaks = pi/4 *0:4,
+                     labels = c('0', 'pi/4', 'pi/2', '3pi/4', 'pi'),
+                     name = 'Tailwind  <---  Wind Angle  --->  Headwind')
+```
+
+
+# Model Fitting
+```{r flight_gamms}
+ftc <- gam(FlapRatio ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = betar(), data = segSample)
+fam <- gam(FlapRatio ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = betar(), data = segSample)
+otc <- gam(MeanODBA ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
+oam <- gam(MeanODBA ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
+
+summary(ftc)
+summary(fam)
+summary(otc)
+summary(oam)
+
+# Visualize both on a angle/speed plot
+grain <- 15
+model_predictions <- expand.grid(WindAngle = seq(0, pi, length.out = grain),
+                                 WindSpd = seq(4, 12, length.out = grain),
+                                 DeployID = 1145) %>%
+  mutate(Tailwind = WindSpd * cos(WindAngle),
+         Crosswind = WindSpd * sin(WindAngle)) %>%
+  mutate(FTC = predict(ftc, newdata = ., 
+                       exclude = 's(DeployID)', type = 'response'),
+         FAM = predict(fam, newdata = ., 
+                       exclude = 's(DeployID)', type = 'response'),
+         OTC = predict(otc, newdata = ., 
+                       exclude = 's(DeployID)', type = 'response'),
+         OAM = predict(oam, newdata = ., 
+                       exclude = 's(DeployID)', type = 'response'))
+AS_kd <- ks::kde(select(segSample, WindAngle, WindSpd), compute.cont = TRUE)
+fence <- function(x, lower, upper) {
+    ifelse(x < lower, lower, ifelse(x > upper, upper, x))
 }
+cont_95 <- with(AS_kd, contourLines(x = eval.points[[1]], 
+                                    y = eval.points[[2]],
+                                    z = estimate, 
+                                    levels = cont["5%"])[[1]]) %>%
+  data.frame %>%
+  mutate(x = fence(x, 
+                   min(model_predictions$WindAngle), 
+                   max(model_predictions$WindAngle)),
+         y = fence(y, 
+                   min(model_predictions$WindSpd), 
+                   max(model_predictions$WindSpd)))
+
+# Color blind safe palette
+cbs_blue <- '#56B4E9'
+cbs_orange <- '#E69F00'
+cbs_green <- '#009E73'
+
+p7a <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = FTC)) +
+  stat_contour(aes(z = FTC), color = cbs_green, binwidth = 0.02) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (0.18 + 0.39) / 2,
+                       limits = c(0.18, 0.39),
+                       labels = function(x) sprintf('%i%%', x * 100)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'none', axis.title.y = element_blank()) +
+  labs(y = 'Wind Speed (m/s)',
+       fill = 'Flap\nRatio')
+
+p7b <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = FAM)) +
+  stat_contour(aes(z = FAM), color = cbs_green, binwidth = 0.02) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (0.18 + 0.39) / 2,
+                       limits = c(0.18, 0.39),
+                       labels = function(x) sprintf('%i%%', x * 100)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'none', axis.title.y = element_blank())
+
+# Axis title and fill guide for 7a & b
+p7ab <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = FAM)) +
+  stat_contour(aes(z = FAM), color = cbs_green, binwidth = 0.02) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (0.18 + 0.39) / 2,
+                       limits = c(0.18, 0.39),
+                       labels = function(x) sprintf('%i%%', x * 100)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'right') +
+  labs(y = 'Wind Speed (m/s)',
+       fill = 'Flap\nRatio')
+
+png('../analysis/figures/Fig7a.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7a)
+dev.off()
+png('../analysis/figures/Fig7b.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7b)
+dev.off()
+png('../analysis/figures/Fig7ab.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7ab)
+dev.off()
+
+p7c <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = OTC)) +
+  stat_contour(aes(z = OTC), color = cbs_green, binwidth = 0.5) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (6 + 9.2) / 2,
+                       limits = c(6, 9.2)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'none', axis.title.y = element_blank()) +
+  labs(y = 'Wind Speed (m/s)',
+       fill = 'Flap\nRatio')
+
+p7d <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = OAM)) +
+  stat_contour(aes(z = OAM), color = cbs_green, binwidth = 0.5) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (6 + 9.2) / 2,
+                       limits = c(6, 9.2)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'none', axis.title.y = element_blank())
+
+# Axis title and fill guide for 7c & d
+p7cd <- ggplot(model_predictions, aes(WindAngle, WindSpd)) +
+  geom_raster(aes(fill = OAM)) +
+  stat_contour(aes(z = OAM), color = cbs_green, binwidth = 0.5) + 
+  geom_path(data = cont_95, aes(x, y), linetype = 'dashed', alpha = 0.5) +
+  scale_fill_gradient2(low = cbs_blue, 
+                       high = cbs_orange, 
+                       midpoint = (6 + 9.2) / 2,
+                       limits = c(6, 9.2)) +
+  angle_scale +
+  theme_few(base_size = 9) +
+  theme(legend.position = 'right') +
+  labs(y = 'Wind Speed (m/s)',
+       fill = 'ODBA\n(m/s^2)')
+
+png('../analysis/figures/Fig7c.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7c)
+dev.off()
+png('../analysis/figures/Fig7d.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7d)
+dev.off()
+png('../analysis/figures/Fig7cd.png', width = 75, height = 65, units = 'mm', res = 300)
+print(p7cd)
+dev.off()
 ```
 
-```{r fit_random_effects, eval = FALSE}
-# Fit models
-modCl <- makeCluster(detectCores() - 1, type = 'FORK')
-registerDoParallel(modCl)
-re.mod <- foreach(f = re.form) %dopar% {
-  mod.formula <- update.formula(fe.max, f)
-  tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
-}
-stopCluster(modCl)
+# Model Validation
+Use cross validation to see which model (FTC, FAM) is best
 
-# Save random effects models
-save(re.mod, file = '../data/out/Models/REmodels.RData')
-```
+```{r model_validation_F}
+cross_validate <- function() {
+  frac <- 0.8
 
-```{r summ_random_effects}
-load('../data/out/Models/REmodels.RData')
-# Summarize models by AIC
-re.summ <- foreach(f = re.form,
-                   m = re.mod, 
-                   .combine = rbind) %do% {
-  re.formula <- char.formula(f)
-  if(is.null(m)) {
-    data.frame(Formula = re.formula,
-               AIC = NA)
-  } else {
-    data.frame(Formula = re.formula,
-               AIC = AIC(m))
-  }
-} %>%
-  mutate(dAIC = AIC - min(AIC, na.rm = TRUE),
-         rellik = exp(-0.5 * dAIC),
-         AICw = rellik/sum(rellik, na.rm = TRUE)) %>%
-  select(-rellik) %>%
-  arrange(dAIC)
-
-# Print table
-kable(re.summ, digits = 3)
-```
-
-Based on AIC the top ranked random effects structure is (C:L|B). (L|B) and (T:C|B) had delta AIC of 7.930 and 8.708.
-
-## Determine fixed effects structure
-Using the optimal random effects structure, determine best fitting fixed effects structure
-```{r setup_mixed_effects}
-# List to store fixed effects model formulae
-me.form <- list()
-# Formulae of optimal random effects structures
-re.optim1 <- FlapRatio ~ (Crosswind:Leg|DeployID)
-re.optim2 <- FlapRatio ~ (Leg|DeployID)
-re.optim3 <- FlapRatio ~ (Tailwind:Crosswind|DeployID)
-
-# Mixed effects to test with (C:L|B)
-me.form[[1]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim1)
-me.form[[2]] <- list(~ . + Crosswind * Leg + Tailwind, re.optim1)
-me.form[[3]] <- list(~ . + Crosswind * Leg, re.optim1)
-
-# Mixed effects to test with (L|B)
-me.form[[4]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim2)
-me.form[[5]] <- list(~ . + Tailwind * Crosswind + Leg, re.optim2)
-me.form[[5]] <- list(~ . + Tailwind + Crosswind * Leg, re.optim2)
-me.form[[6]] <- list(~ . + Tailwind * Leg + Crosswind, re.optim2)
-me.form[[7]] <- list(~ . + Tailwind + Crosswind + Leg, re.optim2)
-me.form[[8]] <- list(~ . + Tailwind * Leg, re.optim2)
-me.form[[9]] <- list(~ . + Tailwind + Leg, re.optim2)
-me.form[[10]] <- list(~ . + Crosswind * Leg, re.optim2)
-me.form[[11]] <- list(~ . + Crosswind + Leg, re.optim2)
-me.form[[12]] <- list(~ . + Leg, re.optim2)
-
-# Mixed effects to test with (T:C|B)
-me.form[[13]] <- list(~ . + Tailwind * Crosswind * Leg, re.optim3)
-me.form[[14]] <- list(~ . + Tailwind * Crosswind + Leg, re.optim3)
-me.form[[15]] <- list(~ . + Tailwind * Crosswind, re.optim3)
-```
-
-```{r fit_mixed_effects, eval = FALSE}
-# Fit models
-modCl <- makeCluster(detectCores() - 1, type = 'FORK')
-registerDoParallel(modCl)
-me.mod <- foreach(f = me.form,
-                  i = seq_along(re.form)) %dopar% {
-  # Update 
-  mod.formula <- update.formula(f[[2]], f[[1]])
-  tryCatch(glmmadmb(mod.formula, segSample, family = 'beta'), error = function(e) NULL)
-}
-stopCluster(modCl)
-
-# Save mixed effects models
-save(me.mod, file = '../data/out/Models/MEmodels.RData')
-```
-
-```{r summ_mixed_effects, fig.width=8, fig.height=8}
-load('../data/out/Models/MEmodels.RData')
-# Summarize models by AIC
-me.summ <- foreach(f = me.form,
-                   m = me.mod, 
-                   .combine = rbind) %do% {
-  fe.formula <- char.formula(f[[1]])
-  re.formula <- char.formula(f[[2]])
+  fit_data <- sample_frac(segSample, size = frac)
+  check_data <- anti_join(segSample, fit_data, by = 'SegmentID')
   
-  if(is.null(m)) {
-    data.frame(FixedEffects = fe.formula,
-               RandomEffects = re.formula,
-               AIC = NA)
-  } else {
-    data.frame(FixedEffects = fe.formula,
-               RandomEffects = re.formula,
-               AIC = AIC(m))
-  }
-} %>%
-  mutate(dAIC = AIC - min(AIC, na.rm = TRUE),
+  tryCatch({
+    ftc_frac <- gam(FlapRatio ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = betar(), data = fit_data)
+  fam_frac <- gam(FlapRatio ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = betar(), data = fit_data)
+  
+  pred_data <- check_data %>%
+    mutate(ftc_pred = predict(ftc_frac, ., type = 'response'),
+           fam_pred = predict(fam_frac, ., type = 'response'),
+           ftc_resid = ftc_pred - FlapRatio,
+           fam_resid = fam_pred - FlapRatio)
+  
+  pred_data %>%
+    summarize(ftc_rmse = sqrt(1/n() * sum(ftc_resid^2)),
+              fam_rmse = sqrt(1/n() * sum(fam_resid^2)))
+  }, error = function(e) data.frame(otc_rmse = NA, oam_rmse = NA))
+}
+
+cv_results <- replicate(1e4, cross_validate(), simplify = TRUE) %>%
+  t %>%
+  data.frame %>%
+  mutate_all(as.numeric)
+
+cv_results %>% 
+  gather(model, rmse, ftc_rmse, fam_rmse) %>% 
+  ggplot(aes(x = rmse, color = model)) +
+  geom_density()
+
+t.test(cv_results$ftc_rmse, cv_results$fam_rmse)
+```
+Use cross validation to see which model (OTC, OAM) is best
+
+```{r model_validation_O}
+cross_validate <- function() {
+  frac <- 0.8
+
+  fit_data <- sample_frac(segSample, size = frac)
+  check_data <- anti_join(segSample, fit_data, by = 'SegmentID')
+  
+  tryCatch({
+    otc_frac <- gam(MeanODBA ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = gaussian(), data = fit_data)
+    oam_frac <- gam(MeanODBA ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = gaussian(), data = fit_data) 
+    
+    pred_data <- check_data %>%
+      mutate(otc_pred = predict(otc_frac, ., type = 'response'),
+             oam_pred = predict(oam_frac, ., type = 'response'),
+             otc_resid = otc_pred - MeanODBA,
+             oam_resid = oam_pred - MeanODBA)
+    
+    pred_data %>%
+      summarize(otc_rmse = sqrt(1/n() * sum(otc_resid^2)),
+                oam_rmse = sqrt(1/n() * sum(oam_resid^2)))
+  }, error = function(e) data.frame(otc_rmse = NA, oam_rmse = NA))
+}
+
+cv_results <- replicate(1e4, cross_validate(), simplify = TRUE) %>%
+  t %>%
+  data.frame %>%
+  mutate_all(as.numeric)
+
+cv_results %>% 
+  gather(model, rmse, otc_rmse, oam_rmse) %>% 
+  ggplot(aes(x = rmse, color = model)) +
+  geom_density()
+
+t.test(cv_results$otc_rmse, cv_results$oam_rmse)
+```
+
+```{r diagnostics}
+partial_plot <- function(model, predictor, x_scale, y_scale) {
+  visreg(model, 
+         predictor, 
+         type = 'conditional', 
+         gg = TRUE, 
+         scale = 'response', 
+         rug = 1,
+         line = list(col = 'black')) + 
+    x_scale +
+    y_scale +
+    theme_few(base_size = 8)
+}
+
+T_scale <- scale_x_continuous('Tailwind (m/s)')
+C_scale <- scale_x_continuous('Crosswind (m/s)')
+A_scale <- scale_x_continuous('Wind Angle',
+                              breaks = angle_breaks,
+                              labels = angle_lbls)
+M_scale <- scale_x_continuous('Wind Speed (m/s)')
+F_scale <- scale_y_continuous('Flap Ratio',
+                     limits = c(0.2, 0.45),
+                     labels = function(x) sprintf('%i%%', x * 100))
+O_scale <- scale_y_continuous('ODBA (m/s^2)',
+                     limits = c(5, 9))
+
+partials <- mapply(partial_plot,
+                   list(ftc, ftc, fam, fam, otc, otc, oam, oam),
+                   list('Tailwind', 'Crosswind', 'WindAngle', 'WindSpd',
+                        'Tailwind', 'Crosswind', 'WindAngle', 'WindSpd'),
+                   list(T_scale, C_scale, A_scale, M_scale,
+                        T_scale, C_scale, A_scale, M_scale),
+                   list(F_scale, F_scale, F_scale, F_scale, 
+                        O_scale, O_scale, O_scale, O_scale),
+                   SIMPLIFY = FALSE)
+
+p8 <- arrangeGrob(grobs = partials, nrow = 2)
+grid.arrange(p8)
+png('../analysis/figures/Fig8.png', width = 170, height = 110, units = 'mm', res = 300)
+grid.arrange(p8)
+dev.off()
+```
+
+```{r speed_models}
+p6 <- ggplot(segSample, aes(Tailwind, meanSpd)) +
+  geom_point(color = 'gray') +
+  geom_smooth(method = 'loess', se = FALSE, color = 'black') +
+  labs(x = 'Tailwind Speed (m/s)',
+       y = 'Ground Speed (m/s)') +
+  theme_few(base_size = 9)
+
+print(p6)
+
+png('../analysis/figures/Fig6.png', width = 85, height = 85, units = 'mm', res = 300)
+print(p6)
+dev.off()
+
+SgTCcand <- list(lmer(meanSpd ~ poly(Tailwind, 2) * Crosswind + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ poly(Tailwind, 2) * Crosswind + (poly(Tailwind, 2)|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ poly(Tailwind, 2) + Crosswind + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ poly(Tailwind, 2) + Crosswind + (poly(Tailwind, 2)|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ poly(Tailwind, 2) + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ poly(Tailwind, 2) + (poly(Tailwind, 2)|DeployID),
+                      data = segSample))
+SgTCRank <- data.frame(formula = as.character(lapply(SgTCcand, formula)),
+                       AIC = sapply(SgTCcand, AIC)) %>%
+  mutate(dAIC = AIC - min(AIC),
          rellik = exp(-0.5 * dAIC),
-         AICw = rellik/sum(rellik, na.rm = TRUE)) %>%
-  select(-rellik) %>%
-  arrange(dAIC)
+         AICw = rellik / sum(rellik)) %>%
+  arrange(-AICw)
+kable(SgTCRank)
+SgTCModel <- SgTCcand[[which(SgTCRank$formula[1] == as.character(lapply(SgTCcand, formula)))]]
+summary(SgTCModel)
+MuMIn::r.squaredGLMM(SgTCModel)
 
-# Print table
-kable(me.summ, digits = 3)
+SgAMcand <- list(lmer(meanSpd ~ WindAngle * WindSpd + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ WindAngle * WindSpd + (WindAngle|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ WindAngle + WindSpd + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ WindAngle + WindSpd + (WindAngle|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ WindAngle + (1|DeployID),
+                      data = segSample),
+                 lmer(meanSpd ~ WindAngle + (WindAngle|DeployID),
+                      data = segSample))
+SgAMRank <- data.frame(formula = as.character(lapply(SgAMcand, formula)),
+                       AIC = sapply(SgAMcand, AIC)) %>%
+  mutate(dAIC = AIC - min(AIC),
+         rellik = exp(-0.5 * dAIC),
+         AICw = rellik / sum(rellik)) %>%
+  arrange(-AICw)
+kable(SgAMRank)
+SgAMModel <- SgAMcand[[which(SgAMRank$formula[1] == as.character(lapply(SgAMcand, formula)))]]
+summary(SgAMModel)
+MuMIn::r.squaredGLMM(SgAMModel)
 
-# Compare actual/predicted distributions
-mod.rank <- foreach(f = me.form,
-                    m = me.mod,
-                    .combine = rbind) %do% {
-  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
-             mod.aic = AIC(m))
-} %>%
-  mutate(mod.rank = rank(mod.aic))
-foreach(f = me.form,
-        m = me.mod,
-        .combine = rbind) %do% {
-  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
-             mod.fitted = m$fitted)
-} %>%
-  left_join(mod.rank) %>%
-  ggplot(aes(x = mod.fitted)) +
-  geom_density(color = '#AA0000') +
-  facet_wrap(~ mod.lbl) +
-  geom_density(data = me.mod[[1]]$frame, 
-               aes(x = FlapRatio),
-               fill = '#0000AA',
-               alpha = 0.5) +
-  geom_text(aes(label = mod.rank), x = 0.1, y = 5) +
-  labs(x = 'Flap Ratio',
-       y = 'Density Function',
-       title = 'Fiitted vs. Actual Flap Ratio Distribution',
-       caption = 'Blue fill = actual, red line = fitted, number = rank')
+SgCand <- c(SgTCcand, SgAMcand)
+R2m <- function(m) MuMIn::r.squaredGLMM(m)['R2m']
+SgRank <- data.frame(formula = as.character(lapply(SgCand, formula)),
+                     r.squared = sapply(SgCand, R2m),
+                     AIC = sapply(SgCand, AIC)) %>%
+  mutate(dAIC = AIC - min(AIC),
+         rellik = exp(-0.5 * dAIC),
+         AICw = rellik / sum(rellik)) %>%
+  arrange(-AICw) %>%
+  select(-rellik)
+kable(SgRank)
 
-# Residuals vs fitted
-foreach(f = me.form,
-        m = me.mod,
-        .combine = rbind) %do% {
-  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
-             mod.resid = m$residuals,
-             mod.fit = m$fitted)
-} %>%
-  left_join(mod.rank) %>%
-  ggplot(aes(x = mod.fit, y = mod.resid)) +
-  geom_point() +
-  geom_smooth() +
-  geom_text(aes(label = mod.rank), x = 0.2, y = -0.25) +
-  facet_wrap(~ mod.lbl) +
-  labs(title = 'Residuals vs fitted values',
-       caption = 'Number = rank')
+pred_data <- data.frame(Tailwind = seq(-12, 12, length.out = 100))
 
-# QQ plots
-foreach(f = me.form,
-        m = me.mod,
-        .combine = rbind) %do% {
-  data.frame(mod.lbl = paste(char.formula(f[[1]]), char.formula(f[[2]])),
-             mod.resid = m$residuals)
-} %>%
-  left_join(mod.rank) %>%
-  ggplot(aes(sample = mod.resid / sd(mod.resid))) +
-  stat_qq() +
-  geom_abline(slope = 1, intercept = 0, color = 'darkred') +
-  facet_wrap(~ mod.lbl) +
-  geom_text(aes(label = mod.rank), x = -2, y = 2) +
-  labs(title = 'Residual Q-Q plots')
+SgPred <- function(m) {
+  predict(m, newdata = pred_data, re.form = NA)
+}
+SgBoot <- bootMer(SgTCModel, SgPred, nsim = 1e4, use.u = FALSE, type = 'parametric')
+SgCI <- function(bound) {
+  if(bound == 'l') {
+    quant <- 0.025
+  } else {
+    quant <- 0.975
+  }
+  apply(SgBoot$t, 2, function(x) as.numeric(quantile(x, probs = quant, na.rm = TRUE)))
+}
+
+p9 <- pred_data %>%
+  mutate(PredSpd = predict(SgTCModel, re.form = NA, newdata = .),
+         LowerSpd = SgCI('l'),
+         UpperSpd = SgCI('u')) %>%
+  ggplot(aes(Tailwind, PredSpd)) +
+  geom_ribbon(aes(ymin = LowerSpd, ymax = UpperSpd), fill = '#AAAAAA') +
+  geom_line() +
+  labs(x = 'Tailwind (m/s)',
+       y = 'Ground Speed (m/s)') +
+  theme_few(base_size = 9)
+
+print(p9)
+
+png('../analysis/figures/Fig9.png', width = 85, height = 85, units = 'mm', res = 300)
+print(p9)
+dev.off()
 ```
 
-The highest ranking mixed effects model is `F ~ T * C * L + (C:L | B)`. None of the diagnostic plots indicate an issue with that model nor does another model appear to outperform it.
+```{r route_selection}
+windspd <- 8
+dist <- 75e3
 
-## Model diagnostics
-```{r mod_summ}
-flight.model <- me.mod[[1]]
-summary(flight.model)
+trip_cost <- function(angle) {
+  Sout <- predict(SgTCModel, re.form = NA, 
+                  newdata = data.frame(Tailwind = windspd * cos(angle)))
+  Sin <- predict(SgTCModel, re.form = NA, 
+                 newdata = data.frame(Tailwind = windspd * cos(pi - angle)))
+  Tout <- dist / Sout
+  Tin <- dist / Sin
+  Fout <- predict(fam, 
+                  newdata = data.frame(WindAngle = angle, 
+                                       WindSpd = windspd,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)', 
+                  type = 'response')
+  Fin <- predict(fam, 
+                 newdata = data.frame(WindAngle = pi - angle, 
+                                      WindSpd = windspd,
+                                      DeployID = 1145),
+                 exclude = 's(DeployID)', 
+                 type = 'response')
+  Oout <- predict(oam,
+                  newdata = data.frame(WindAngle = angle, 
+                                       WindSpd = windspd,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)', 
+                  type = 'response')
+  Oin <- predict(oam,
+                 newdata = data.frame(WindAngle = pi - angle, 
+                                      WindSpd = windspd,
+                                      DeployID = 1145),
+                 exclude = 's(DeployID)', 
+                 type = 'response')
+  EF <- Tout * Fout + Tin * Fin
+  EO <- Tout * Oout + Tin * Oin
+  data.frame(angle, Sout, Sin, Tout, Tin, Fout, Fin, Oout, Oin, EF, EO)
+}
 
-# Histogram of residuals
-data.frame(residuals = residuals(flight.model)) %>%
-  ggplot(aes(x = residuals)) +
-  geom_histogram(binwidth = 0.1) +
-  geom_vline(xintercept = 0, color = 'red') +
-  labs(title = 'Distribution of residuals')
+routes0 <- lapply(c(0, pi / 4, pi / 2), trip_cost) %>%
+  rbind_all
 
-# Residuals vs fitted
-data.frame(residuals = residuals(flight.model),
-           fitted = fitted(flight.model)) %>%
-  ggplot(aes(x = fitted, y = residuals)) +
-  geom_point() +
-  geom_smooth() +
-  labs(title = 'Residuals vs fitted values')
+routes <- routes0 %>%
+  group_by(angle) %>%
+  summarize(duration = Tout + Tin,
+            durHours = duration / 3600, 
+            flap = Fout * Tout / duration + Fin * Tin / duration,
+            odba = Oout * Tout / duration + Oin * Tin / duration)
 
-# Random effect coefficient distributions
-flight.model.ranef <- ranef(flight.model) %>%
-  data.frame
-colnames(flight.model.ranef) <- c('Intercept', 'CrossIn', 'CrossOut')
-flight.model.ranef %>%
-  gather(RandomEffect, Value, Intercept:CrossOut) %>%
-  group_by(RandomEffect) %>%
-  summarize(Lower = mean(Value) - sd(Value),
-            Mean = mean(Value),
-            Upper = mean(Value) + sd(Value)) %>%
-  ggplot(aes(y = RandomEffect)) +
-  geom_segment(aes(x = Lower, xend = Upper, yend = RandomEffect)) +
-  geom_point(aes(x = Mean)) +
-  labs(x = 'Regression estimates',
-       y = 'Random Effect',
-       title = 'Range of random effect coefficients')
-```
+kable(routes)
 
-## Model predictions
-```{r mod.pred}
-cardinality <- 30
-model.predictions <- expand.grid(Tailwind = seq(-12, 12, length.out = cardinality),
-                                 Crosswind = seq(0, 12, length.out = cardinality),
-                                 Leg = c('Inbound', 'Outbound')) %>%
-  mutate(FlapRatio = predict(flight.model, newdata = ., type = 'response'))
-
-# Get convex hulls of original data
-segHulls <- segSample %>%
-  do({
-    pt_order <- with(., chull(Tailwind, Crosswind))
-    pt_order_closed <- c(pt_order, pt_order[1])
-    data.frame(Tailwind = .$Tailwind[pt_order_closed],
-               Crosswind = .$Crosswind[pt_order_closed],
-               stringsAsFactors = FALSE)
-  })
-
-# Response plot with original data extent
-ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
-  geom_tile(aes(fill = FlapRatio)) +
-  geom_polygon(data = segHulls, fill = 'darkgrey', alpha = 0.55) +
-  geom_contour(aes(z = FlapRatio)) +
-  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.6)) +
-  facet_wrap(~ Leg) +
-  labs(fill = 'Flap Ratio',
-       title = 'Flight Model Predictions',
-       caption = 'Shaded area indicates extent of original data\nContours in blue')
-
-# Response plot without original data extent
-ggplot(model.predictions, aes(x = Tailwind, y = Crosswind)) +
-  geom_tile(aes(fill = FlapRatio)) +
-  geom_contour(aes(z = FlapRatio)) +
-  scale_fill_distiller(type = 'div', palette = 'RdBu', limits = c(0.2, 0.6)) +
-  facet_wrap(~ Leg) +
-  labs(fill = 'Flap Ratio',
-       title = 'Flight Model Predictions',
-       caption = 'Contours in blue')
-```
-
-```{r}
-segSample2 <- mutate(segSample, 
-                     WindMag = sqrt(Tailwind^2+Crosswind^2), 
-                     WindAngle = atan2(Crosswind, Tailwind))
-
-ggplot(segSample2, aes(x = WindAngle, y = MeanODBA, color = WindMag)) +
-  geom_point() +
-  geom_smooth()
-maModel <- lmer(MeanODBA ~ WindMag * WindAngle + (1|DeployID), segSample2)
-mutate(segSample2,
-       fitted = fitted(maModel),
-       resid = resid(maModel)) %>%
-  ggplot(aes(x = fitted, y = resid)) +
-  geom_point() +
-  geom_smooth()
-r.squaredGLMM(maModel)
-
-ggplot(segSample2, aes(x = WindAngle, y = FlapRatio, color = WindMag)) +
-  geom_point() +
-  geom_smooth()
-maModel2 <- lmer(FlapRatio ~ WindMag * poly(WindAngle, 2) + (1|DeployID), segSample2)
-mutate(segSample2,
-       fitted = fitted(maModel2, type = 'response'),
-       resid = resid(maModel2)) %>%
-  ggplot(aes(x = fitted, y = resid)) +
-  geom_point() +
-  geom_smooth()
-
-maModel2.prd <- expand.grid(WindAngle = seq(0, pi, length.out = 100),
-                            DeployID = unique(segSample2$DeployID)) %>%
-  mutate(WindMag = median(segSample2$WindMag)) %>%
-  cbind(predictInterval(maModel2, 
-                        newdata = .,
-                        which = 'fixed')) # merTools
-
-mutate(segSample2,
-       fitted = fitted(maModel2, type = 'response'),
-       resid = resid(maModel2)) %>%
-  ggplot() +
-  geom_point(aes(x = WindAngle, y = FlapRatio)) +
-  geom_ribbon(aes(x = WindAngle, ymin = lwr, ymax = upr), 
-              data = maModel2.prd,
-              alpha = 0.5,
-              fill = 'lightblue') +
-  geom_line(aes(x = WindAngle, y = fit), 
-            data = maModel2.prd,
-            color = 'blue') +
-  facet_wrap(~DeployID)
-r.squaredGLMM(maModel2)
-
-ggplot(segSample2, aes(x = Tailwind, y = FlapRatio, color = Crosswind)) +
-  geom_point() +
-  geom_smooth()
-tcModel <- lmer(FlapRatio ~ Crosswind * poly(Tailwind, 2) + (1|DeployID), segSample2)
-mutate(segSample2,
-       fitted = fitted(tcModel, type = 'response'),
-       resid = resid(tcModel)) %>%
-  ggplot(aes(x = fitted, y = resid)) +
-  geom_point() +
-  geom_smooth()
-
-tcModel.prd <- expand.grid(Tailwind = seq(-10, 10, length.out = 100),
-                           DeployID = unique(segSample2$DeployID)) %>%
-  mutate(Crosswind = median(segSample2$Crosswind)) %>%
-  cbind(predictInterval(tcModel, 
-                        newdata = .,
-                        which = 'fixed')) # merTools
-
-mutate(segSample2,
-       fitted = fitted(tcModel, type = 'response'),
-       resid = resid(tcModel)) %>%
-  ggplot() +
-  geom_point(aes(x = Tailwind, y = FlapRatio)) +
-  geom_ribbon(aes(x = Tailwind, ymin = lwr, ymax = upr), 
-              data = tcModel.prd,
-              alpha = 0.5,
-              fill = 'lightblue') +
-  geom_line(aes(x = Tailwind, y = fit), 
-            data = tcModel.prd,
-            color = 'blue') +
-  facet_wrap(~DeployID)
-r.squaredGLMM(tcModel)
+routes %>%
+  transmute(angle,
+            durHours,
+            durRatio = durHours / min(durHours),
+            flapRatio = flap / min(flap),
+            odbaRatio = odba / min(odba)) %>%
+  kable
 ```
