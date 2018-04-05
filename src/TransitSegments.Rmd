@@ -184,26 +184,13 @@ save(tracks, segments0, segments, file = '../data/out/TransitSegments/Segments.R
 ```
 
 ```{r segmentSummary}
-p <- 
-print(p)
-ggsave('../analysis/figures/Fig2b.png', p, width = 170 * 1/3, height = 125, units = 'mm', dpi = 300)
-
-segments %>% 
-  ggplot(aes(x = Start,
-             y = DeployID)) +
-  geom_point() +
-  scale_x_datetime(date_breaks = '2 weeks',
-                   date_labels = '%e %b') +
-  labs(x = 'Segment Date',
-       title = 'Temporal Distribution of Segments')
-
 # Figure 2
 p2a <- segments %>%
   ggplot(aes(x = as.Date(Start))) +
   stat_bin(aes(y = cumsum(..count..) / sum(..count..)), 
            binwidth = 2,
            geom = 'step') +
-  geom_vline(xintercept = as.numeric(ymd('2016-07-11')), linetype = 'dashed') +
+  geom_vline(xintercept = as.numeric(ymd('2016-07-18')), linetype = 'dashed') +
   scale_x_date(date_breaks = '2 weeks',
                date_labels = '%e %b') +
   labs(x = NULL,
@@ -211,7 +198,7 @@ p2a <- segments %>%
        title = 'Cumulative Temporal Distribution of Segments') +
   theme_few()
 print(p2a)
-inset_vp <- viewport(width = 0.47, height = 0.61, x = 0.5, y = 0.07, just = c(0,0))
+inset_vp <- viewport(width = 0.46, height = 0.61, x = 0.525, y = 0.07, just = c(0,0))
 p2b <- segments %>% 
   ggplot(aes(x = fct_rev(fct_infreq(DeployID)))) +
   geom_bar() +

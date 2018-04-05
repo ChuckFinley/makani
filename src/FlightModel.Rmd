@@ -116,14 +116,18 @@ angle_lbls <- c('0',
 angle_scale <- scale_x_continuous(breaks = angle_breaks,
                                   labels = angle_lbls,
                                   name = '(Tailwind)  <---  Wind Angle  --->  (Headwind)')
-p3 <- ggplot(segSample, aes(x = WindAngle)) +
+p3 <- ggplot(segSample, aes(x = WindAngle, fill = Leg)) +
   geom_histogram(binwidth = pi/16, boundary = 0) + 
   angle_scale +
+  scale_fill_manual(values = c('#ef8a62', '#67a9cf'), guide = FALSE) +
   labs(y = 'frequency') +
   theme_few(base_size = 9)
 png('../analysis/figures/Fig3.png', width = 85, height = 85, units = 'mm', res = 300)
 print(p3)
 dev.off()
+
+# Significant difference in wind angle between outbound and inbound?
+circular::watson.wheeler.test(WindAngle ~ Leg, segSample)
   
 ggplot(segSample, aes(x = WindSpd)) +
   geom_histogram(binwidth = 0.5, boundary = 0) +
