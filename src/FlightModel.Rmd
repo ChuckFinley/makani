@@ -371,6 +371,8 @@ fam <- gam(FlapRatio ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(De
 otc <- gam(MeanODBA ~ s(Tailwind) + s(Crosswind) + ti(Tailwind, Crosswind) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
 oam <- gam(MeanODBA ~ s(WindAngle) + s(WindSpd) + ti(WindAngle, WindSpd) + s(DeployID, bs = 're'), family = gaussian(), data = segSample)
 
+save(ftc, fam, otc, oam, file = '../data/out/Models/EnergyModels.Rdata')
+
 summary(ftc)
 summary(fam)
 summary(otc)
@@ -708,6 +710,8 @@ SgRank <- data.frame(formula = as.character(lapply(SgCand, formula)),
   arrange(-AICw) %>%
   select(-rellik)
 kable(SgRank)
+
+save(SgTCModel, file = '../data/out/Models/SgTCModel.RData')
 
 pred_data <- data.frame(Tailwind = seq(-12, 12, length.out = 100))
 
