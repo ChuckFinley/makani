@@ -4,7 +4,8 @@ library(sp)
 library(dplyr)
 library(ggplot2)
 
-# Colony location and foraging range
+# Spatial data
+## Colony location and foraging range
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
 hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-157 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
 kpc_col <- data.frame(x = -159.40, y = 22.23)
@@ -14,18 +15,27 @@ kpc_forage <- SpatialPoints(kpc_col,
   rgeos::gBuffer(width = 250e3) %>%
   spTransform(wgs84_prj)
 
+## Land
+hi_shp <- rgdal::readOGR('data/coastline/ne_10m_coastline', 'ne_10m_coastline') %>%
+  spTransform(wgs84_prj) %>%
+  rgeos::gIntersection(kpc_forage, byid = TRUE, drop_lower_td = TRUE) %>%
+  sf::st_as_sf() %>%
+  sf::st_polygonize() %>%
+  as('Spatial')
+
 # Environmental data
 sst_id <- 'jplG1SST'
 chla_id <- 'erdMH1pp1day'
 bathy_id <- 'ETOPO180'
 env_x <- bbox(kpc_forage)['x',]
 env_y <- bbox(kpc_forage)['y',] 
-env_t <- c('2016-06-01', '2016-06-01')
+env_t <- c('2016-06-01', '2016-06-04')
 sst_data <- xtracto_3D(sst_id, env_x, env_y, env_t)
 chl_data <- xtracto_3D(chla_id, env_x, env_y, env_t)
 bathy_data <- xtracto_3D(bathy_id, env_x, env_y, env_t)
 
-# Utility functions for ggplot compatibility
+# Plot environment
+## Utility functions for ggplot compatibility
 fortify_cube <- function(x, y, t, values) {
   if(!all.equal(dim(values), c(length(x), length(y), length(t)))) 
     stop('!all.equal(dim(values), c(length(x), length(y), length(t))')
@@ -48,15 +58,74 @@ fortify_xtracto <- function(xtracto_result) {
   with(xtracto_result, fortify_cube(longitude, latitude, time, data))
 }
 
-# Plot variables
+## Plot variables
 fortify_xtracto(sst_data) %>%
+  filter(time == first(time)) %>%
   ggplot(aes(x = x, y = y, fill = value)) + 
   geom_raster()
 
 fortify_xtracto(chl_data) %>%
+  filter(time == first(time)) %>%
   ggplot(aes(x = x, y = y, fill = value)) + 
   geom_raster()
 
 fortify_xtracto(bathy_data) %>%
   ggplot(aes(x = x, y = y, fill = value)) + 
   geom_raster()
+
+ggplot() +
+  geom_polygon(aes(long, lat, group = group), 
+               data = fortify(hi_shp)) +
+  geom_polygon(aes(long, lat, group = group),
+               data = fortify(kpc_forage),
+               fill = NA,
+               color = 'black',
+               linetype = 'dashed') +
+  geom_point(aes(x, y),
+             data = kpc_col,
+             color = 'red') +
+  coord_fixed()
+
+# Presence records
+## DB connections
+mhi_db <-  src_sqlite('data/MHI_GPS.sqlite')
+tidytracks_db <- tbl(mhi_db, 'TidyTracks')
+
+## Tracks
+### Get from database
+num_time <- as.numeric(lubridate::ymd(env_t, tz = 'UTC'))
+rfbo_wk1 <- tidytracks_db %>%
+  filter(TimestampUTC >= num_time[1],
+         TimestampUTC <= num_time[2]) %>%
+  collect
+
+ggplot(rfbo_wk1, aes(Longitude, 
+                     Latitude, 
+                     color = factor(TripID))) + 
+  geom_path()
+
+### Sample 10 points per trip
+set.seed(1705)
+rfbo_sample <- rfbo_wk1 %>%
+  filter(PositionLag <= 180) %>%
+  group_by(TripID) %>%
+  filter(n() >= 20) %>%
+  sample_n(10)
+
+ggplot(rfbo_sample, aes(Longitude, 
+                     Latitude, 
+                     color = factor(TripID))) + 
+  geom_point() +
+  guides(color = FALSE)
+
+# Test MaxEnt
+mod1 <- maxent()
+
+jar <- paste(system.file(package="dismo"), "/java/maxent.jar", sep='')
+if (file.exists(jar)) {
+  xm <- maxent(predictors, pres_train, factors='biome')
+  plot(xm)
+} else {
+  cat('cannot run this example because maxent is not available')
+  plot(1)
+}
