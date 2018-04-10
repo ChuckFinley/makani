@@ -5,16 +5,16 @@ library(igraph)
 select <- dplyr::select
 
 # Create hexagonal grid 
-create_grid <- function(origin, radius, spacing) {
+create_grid <- function(origin, radius, res) {
   if(length(origin) != 2 || class(origin) != 'numeric')
     stop('origin must be x,y coordinates (numeric vector of length 2)')
   if(length(radius) != 1 || class(radius) != 'numeric')
     stop('radius must be a single number')
-  if(length(spacing) != 1 || class(spacing) != 'numeric')
-    stop('spacing must be a single number')
+  if(length(res) != 1 || class(res) != 'numeric')
+    stop('res must be a single number')
   
   o <- origin
-  l <- spacing
+  l <- res
   L <- 2 * radius
   h <- l * sin(pi / 3)
   H <- 2 * radius
@@ -39,19 +39,6 @@ create_grid <- function(origin, radius, spacing) {
     mutate(id = row_number()) %>%
     select(id, i, j, x, y)
 }
-
-origin <- c(30, 30)
-radius <- 30
-spacing <- 15
-grid_coords <- create_grid(origin, radius, spacing)
-circ_coords <- data.frame(i = seq(0, 2*pi, length.out = 100)) %>%
-  mutate(x = radius * cos(i) + origin[1],
-         y = radius * sin(i) + origin[2])
-ggplot(grid_coords, aes(x, y)) + 
-  geom_text(aes(label = sprintf('(%i, %i)', i, j))) + 
-  annotate('point', origin[1], origin[2], color = 'red') + 
-  geom_path(data = circ_coords, linetype = 'dashed') + 
-  coord_fixed()
 
 # Connect neighboring grid points
 connect_neighbors <- function(grid_coords) {
@@ -81,44 +68,11 @@ connect_neighbors <- function(grid_coords) {
     right_join(grid_coords2, by = c('i2' = 'i', 'j2' = 'j')) %>%
     mutate(azimuth_out = atan2(y2 - y, x2 - x),
            azimuth_in = pi - azimuth_out,
-           distance = sqrt((x2 - x)^2 + (y2 - y)^2))
-}
-
-connections <- connect_neighbors(grid_coords)
-ggplot(grid_coords, aes(x, y)) + 
-  geom_text(aes(label = sprintf('(%i, %i)', i, j))) + 
-  annotate('point', 30, 30, color = 'red') + 
-  geom_path(data = circ_coords, linetype = 'dashed') +
-  geom_segment(aes(x, y, xend = x2, yend = y2), 
-               data = connections,
-               arrow = arrow(length = unit(0.03, 'npc'))) +
-  coord_fixed()
-
-# dummy wind
-wind_u <- matrix(seq(from = -5, to = 10, length.out = 100), nrow = 10) %>%
-  raster(xmn = 0, xmx = 60, ymn = 0, ymx = 60)
-wind_v <- matrix(seq(from = 5, to = -10, length.out = 100), nrow = 10) %>%
-  raster(xmn = 0, xmx = 60, ymn = 0, ymx = 60)
-
-load('data/out/Models/EnergyModels.Rdata')
-load('data/out/Models/SgTCModel.RData')
-
-pred_spd <- function(t) {
-  predict(SgTCModel, 
-          re.form = NA,
-          newdata = data.frame(Tailwind = t))
-}
-pred_energy <- function(a, m) {
-  predict(fam, 
-          newdata = data.frame(WindAngle = a,
-                               WindSpd = m,
-                               DeployID = 1145),
-          exclude = 's(DeployID)',
-          type = 'response')
+           dist = sqrt((x2 - x)^2 + (y2 - y)^2))
 }
 
 # Annotate connections with wind conditions and trip predictions
-annotate_wind <- function(connections, u, v, pred_spd, pred_energy) {
+annotate_wind <- function(connections, u, v, mvmt_mod) {
   sample_raster <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
     npoints <- len / xres(r) + 1
@@ -143,30 +97,19 @@ annotate_wind <- function(connections, u, v, pred_spd, pred_energy) {
          mean_v = mapply(FUN = sample_raster, 
                          x, y, x2, y2, 
                          MoreArgs = list(r = wind_v)),
-         wind_angle_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
-         wind_angle_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
-         wind_speed = sqrt(mean_u^2 + mean_v^2),
-         tailwind_out = wind_speed * cos(wind_angle_out),
-         tailwind_in = wind_speed * cos(wind_angle_in),
-         flight_speed_out = pred_spd(tailwind_out),
-         duration_out = flight_speed_out / distance,
-         flap_ratio_out = pred_energy(wind_angle_out, wind_speed),
-         flap_out = duration_out * flap_ratio_out / 60,
-         flight_speed_in = pred_spd(tailwind_in),
-         duration_in = flight_speed_in / distance,
-         flap_ratio_in = pred_energy(wind_angle_in, wind_speed),
-         flap_in = duration_in * flap_ratio_in / 60)
+         a_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
+         a_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
+         m = sqrt(mean_u^2 + mean_v^2),
+         e_out = mvmt_mod(a_out, m, dist),
+         e_in = mvmt_mod(a_in, m, dist))
 }
 
-wind_conns <- annotate_wind(connections, wind_u, wind_v, pred_spd, pred_energy)
-
-# Calculate trip costs
-## NOTE: uses duration as weight. This is hard-coded and needs future editing.
+# Calculate trip costs based on movement model
 trip_costs <- function(grid, conns, origin) {
   origin_id <- filter(grid, x == origin[1], y == origin[2])$id
   
   out_mat <- transmute(conns, id, id2,
-                       weight = duration_out) %>%
+                       weight = e_out) %>%
     igraph::graph_from_data_frame(directed = TRUE,
                                   vertices = grid) %>%
     igraph::distances(graph = .,
@@ -176,9 +119,9 @@ trip_costs <- function(grid, conns, origin) {
   out_cost <- out_mat[origin_id, ]
   
   in_mat <- transmute(conns, id, id2,
-                      weight = duration_in) %>%
+                      weight = e_in) %>%
     igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid_coords) %>%
+                                  vertices = grid) %>%
     igraph::distances(graph = .,
                       mode = 'in', 
                       weights = NULL, 
@@ -191,31 +134,74 @@ trip_costs <- function(grid, conns, origin) {
          rt_cost = out_cost + in_cost)
 }
 
-grid_costs <- trip_costs(grid_coords, wind_conns, origin)
-
-landscape_mask <- data.frame(x = origin[1], y = origin[2]) %>%
-  SpatialPoints %>%
-  rgeos::gBuffer(width = radius)
-landscape_template <- raster(landscape_mask, res = res(wind_u))
-idw <- interpolate(landscape_template, 
-                   gstat::gstat(formula = rt_cost ~ 1,
-                                locations = ~ x + y,
-                                data = grid_costs))
-
-ggplot(grid_costs, aes(x, y, color = rt_cost)) +
-  geom_point(size = 4) +
-  scale_color_gradientn(colors = colorRamps::matlab.like(4))
-
-fortify_raster <- function(r) {
-  data.frame(i = seq(ncell(r))) %>%
-    mutate(x = xFromCell(r, i),
-           y = yFromCell(r, i),
-           val = getValues(r))
+# Interpolate grid to raster
+interp_grid <- function(grid, origin, res, dir = 'rt_cost') {
+  if(!(dir %in% c('out_cost', 'in_cost', 'rt_cost'))) {
+    stop('"dir" must be one of "out_cost", "in_cost", or "rt_cost"')
+  }
+  landscape_mask <- data.frame(x = origin[1], y = origin[2]) %>%
+    SpatialPoints %>%
+    rgeos::gBuffer(width = radius)
+  landscape_template <- raster(landscape_mask, res = res)
+  idw_mod <- gstat::gstat(formula = rt_cost ~ 1,
+                          locations = ~ x + y,
+                          data = grid)
+  interpolate(landscape_template, idw_mod) %>%
+    mask(landscape_mask)
 }
 
-ggplot(grid_costs) +
-  geom_raster(aes(x, y, fill = val), data = fortify_raster(idw)) +
-  scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
-  geom_point(aes(x, y, color = rt_cost), size = 4) +
-  scale_color_gradientn(colors = colorRamps::matlab.like(4))
+# Estimate energy landscape
+energy_landscape <- function(origin, radius, res, u, v, mvmt_mod, dir) {
+  grid_coords <- create_grid(origin, radius, res)
+  connections <- connect_neighbors(grid_coords)
+  wind_conns <- annotate_wind(connections, u, v, mvmt_mod)
+  grid_costs <- trip_costs(grid_coords, wind_conns, origin)
+  interp_grid(grid_costs, origin, res, dir)
+}
+
+plot_energy_landscape <- function(energy_landscape, origin) {
+  # Utility function for plotting a raster in ggplot
+  fortify_raster <- function(r) {
+    data.frame(i = seq(ncell(r))) %>%
+      mutate(x = xFromCell(r, i),
+             y = yFromCell(r, i),
+             val = getValues(r))
+  }
   
+  ggplot(fortify_raster(energy_landscape),
+         aes(x, y, fill = val)) +
+    geom_raster() +
+    scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
+    annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
+    coord_fixed()
+}
+
+# Test variables
+origin <- c(0, 0)
+radius <- 100
+res <- 10
+wind_u <- matrix(seq(from = -5, to = 10, length.out = 100), nrow = 10) %>%
+  raster(xmn = origin[1] - radius, xmx = origin[1] + radius, 
+         ymn = origin[2] - radius, ymx = origin[2] + radius)
+wind_v <- matrix(seq(from = 5, to = -10, length.out = 100), nrow = 10) %>%
+  raster(xmn = origin[1] - radius, xmx = origin[1] + radius, 
+         ymn = origin[2] - radius, ymx = origin[2] + radius)
+load('data/out/Models/EnergyModels.Rdata')
+load('data/out/Models/SgTCModel.RData')
+mvmt_mod <- function(a, m, d) {
+  t <- a * cos(a)
+  spd <- predict(SgTCModel, 
+                 re.form = NA,
+                 newdata = data.frame(Tailwind = t))
+  flap <- predict(fam, 
+                  newdata = data.frame(WindAngle = a,
+                                       WindSpd = m,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)',
+                  type = 'response')
+  dur <- spd / d
+  dur * flap
+}
+
+test_el <- energy_landscape(origin, radius, res, wind_u, wind_v, mvmt_mod, 'rt_cost')
+print(plot_energy_landscape(test_el, origin))
