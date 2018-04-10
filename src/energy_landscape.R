@@ -2,6 +2,8 @@ library(tidyverse)
 library(sp)
 library(igraph)
 
+select <- dplyr::select
+
 # Create hexagonal grid 
 create_grid <- function(origin, radius, spacing) {
   if(length(origin) != 2 || class(origin) != 'numeric')
@@ -42,6 +44,9 @@ origin <- c(30, 30)
 radius <- 30
 spacing <- 15
 grid_coords <- create_grid(origin, radius, spacing)
+circ_coords <- data.frame(i = seq(0, 2*pi, length.out = 100)) %>%
+  mutate(x = radius * cos(i) + origin[1],
+         y = radius * sin(i) + origin[2])
 ggplot(grid_coords, aes(x, y)) + 
   geom_text(aes(label = sprintf('(%i, %i)', i, j))) + 
   annotate('point', origin[1], origin[2], color = 'red') + 
@@ -162,22 +167,22 @@ trip_costs <- function(grid, conns, origin) {
   
   out_mat <- transmute(conns, id, id2,
                        weight = duration_out) %>%
-    graph_from_data_frame(directed = TRUE,
-                          vertices = grid) %>%
-    distances(graph = .,
-              mode = 'out', 
-              weights = NULL, 
-              algorithm = 'dijkstra')
+    igraph::graph_from_data_frame(directed = TRUE,
+                                  vertices = grid) %>%
+    igraph::distances(graph = .,
+                      mode = 'out', 
+                      weights = NULL, 
+                      algorithm = 'dijkstra')
   out_cost <- out_mat[origin_id, ]
   
   in_mat <- transmute(conns, id, id2,
                       weight = duration_in) %>%
-    graph_from_data_frame(directed = TRUE,
-                          vertices = grid_coords) %>%
-    distances(graph = .,
-              mode = 'in', 
-              weights = NULL, 
-              algorithm = 'dijkstra')
+    igraph::graph_from_data_frame(directed = TRUE,
+                                  vertices = grid_coords) %>%
+    igraph::distances(graph = .,
+                      mode = 'in', 
+                      weights = NULL, 
+                      algorithm = 'dijkstra')
   in_cost <- in_mat[origin_id, ]
   
   mutate(grid,
@@ -188,4 +193,29 @@ trip_costs <- function(grid, conns, origin) {
 
 grid_costs <- trip_costs(grid_coords, wind_conns, origin)
 
-## TODO: Interpolate surface
+landscape_mask <- data.frame(x = origin[1], y = origin[2]) %>%
+  SpatialPoints %>%
+  rgeos::gBuffer(width = radius)
+landscape_template <- raster(landscape_mask, res = res(wind_u))
+idw <- interpolate(landscape_template, 
+                   gstat::gstat(formula = rt_cost ~ 1,
+                                locations = ~ x + y,
+                                data = grid_costs))
+
+ggplot(grid_costs, aes(x, y, color = rt_cost)) +
+  geom_point(size = 4) +
+  scale_color_gradientn(colors = colorRamps::matlab.like(4))
+
+fortify_raster <- function(r) {
+  data.frame(i = seq(ncell(r))) %>%
+    mutate(x = xFromCell(r, i),
+           y = yFromCell(r, i),
+           val = getValues(r))
+}
+
+ggplot(grid_costs) +
+  geom_raster(aes(x, y, fill = val), data = fortify_raster(idw)) +
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
+  geom_point(aes(x, y, color = rt_cost), size = 4) +
+  scale_color_gradientn(colors = colorRamps::matlab.like(4))
+  
