@@ -102,7 +102,8 @@ rfbo_wk1 <- tidytracks_db %>%
 ggplot(rfbo_wk1, aes(Longitude, 
                      Latitude, 
                      color = factor(TripID))) + 
-  geom_path()
+  geom_path() +
+  guides(color = FALSE)
 
 ### Sample 10 points per trip
 set.seed(1705)
@@ -110,22 +111,41 @@ rfbo_sample <- rfbo_wk1 %>%
   filter(PositionLag <= 180) %>%
   group_by(TripID) %>%
   filter(n() >= 20) %>%
-  sample_n(10)
+  sample_n(10) %>%
+  ungroup
 
-ggplot(rfbo_sample, aes(Longitude, 
-                     Latitude, 
-                     color = factor(TripID))) + 
+ggplot(rfbo_sample, 
+       aes(Longitude, 
+           Latitude, 
+           color = factor(TripID))) + 
   geom_point() +
   guides(color = FALSE)
 
 # Test MaxEnt
-mod1 <- maxent()
-
-jar <- paste(system.file(package="dismo"), "/java/maxent.jar", sep='')
-if (file.exists(jar)) {
-  xm <- maxent(predictors, pres_train, factors='biome')
-  plot(xm)
-} else {
-  cat('cannot run this example because maxent is not available')
-  plot(1)
+## Annotate presence data with SST, chl-a, and bathymetry
+dbdate_to_ymd <- function(dbdate) {
+  posix_origin <- lubridate::ymd('1970-01-01', tz = 'utc')
+  as.POSIXct(dbdate, tz = 'utc', origin = posix_origin) %>%
+    format('%Y-%m-%d')
 }
+rfbo_env <- rfbo_sample %>%
+  mutate(sst = xtracto(sst_id, 
+                       Longitude,
+                       Latitude,
+                       dbdate_to_ymd(TimestampUTC))$`mean SST`,
+         chla = xtracto(chla_id, 
+                        Longitude,
+                        Latitude,
+                        dbdate_to_ymd(TimestampUTC))$`mean productivity`,
+         bathy = xtracto(bathy_id, 
+                         Longitude,
+                         Latitude,
+                         dbdate_to_ymd(TimestampUTC))$`mean altitude`) %>%
+  transmute(TripID, 
+            LocDate = dbdate_to_ymd(TimestampUTC), 
+            Longitude, 
+            Latitude, 
+            sst, 
+            chla, 
+            bathy)
+readr::write_csv(rfbo_env, 'data/out/Presences/rfbo_sample.csv')
