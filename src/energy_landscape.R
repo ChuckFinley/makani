@@ -1,6 +1,8 @@
 library(tidyverse)
 library(sp)
 library(igraph)
+library(dplyr)
+library(foreach)
 
 select <- dplyr::select
 
@@ -18,13 +20,15 @@ create_grid <- function(origin, radius, res) {
   L <- 2 * radius
   h <- l * sin(pi / 3)
   H <- 2 * radius
+  x0 <- origin[1] - radius
+  y0 <- origin[2] - radius
   
   i <- seq(floor(L / l) + 1) - 1
   j <- seq(floor(H / h) + 1) - 1
   
   coords <- expand.grid(i = i, j = j) %>%
-    mutate(x = i * l + (j %% 2) * l / 2,
-           y = j * h,
+    mutate(x = x0 + i * l + (j %% 2) * l / 2,
+           y = y0 + j * h,
            d2o = sqrt((x - o[1])^2 + (y - o[2])^2))
   
   o_error <- filter(coords, d2o == min(d2o)) %>%
@@ -36,7 +40,7 @@ create_grid <- function(origin, radius, res) {
          y = y - o_error$dy,
          d2o = sqrt((x - o[1])^2 + (y - o[2])^2)) %>%
     filter(d2o <= radius) %>%
-    mutate(id = row_number()) %>%
+    mutate(id = as.character(row_number())) %>%
     select(id, i, j, x, y)
 }
 
@@ -72,7 +76,7 @@ connect_neighbors <- function(grid_coords) {
 }
 
 # Annotate connections with wind conditions and trip predictions
-annotate_wind <- function(connections, u, v, mvmt_mod) {
+annotate_wind <- function(connections, u, v, mvmt_mod, barriers) {
   sample_raster <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
     npoints <- len / xres(r) + 1
@@ -80,28 +84,53 @@ annotate_wind <- function(connections, u, v, mvmt_mod) {
     cbind(points$x, points$y) %>%
       cellFromXY(r, .) %>%
       raster::extract(r, .) %>%
-      mean
+      mean(na.rm = TRUE)
   }
   
   vector_angle <- function(u, v) {
     dot <- function(u, v) sum(u * v)
     norm <- function(u) sqrt(sum(u^2))
-    acos(dot(u, v) / (norm(u) * norm(v))) %>%
+    result <- acos(dot(u, v) / (norm(u) * norm(v))) %>%
       round(digits = 3)
+    result[is.nan(result)] <- 0
+    result
   }
   
-  mutate(connections,
-         mean_u = mapply(FUN = sample_raster, 
-                         x, y, x2, y2, 
-                         MoreArgs = list(r = wind_u)),
-         mean_v = mapply(FUN = sample_raster, 
-                         x, y, x2, y2, 
-                         MoreArgs = list(r = wind_v)),
-         a_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
-         a_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
-         m = sqrt(mean_u^2 + mean_v^2),
-         e_out = mvmt_mod(a_out, m, dist),
-         e_in = mvmt_mod(a_in, m, dist))
+  if(!is.null(barriers)) {
+    foreach(segment = iterators::iter(connections, by = 'row')) %do% {
+      line <- with(segment, Line(rbind(c(x, y), c(x2, y2))))
+      lines <- with(segment, Lines(list(line), ID = sprintf('%s_%s', id, id2)))
+    } %>%
+      SpatialLines() -> sp_segments
+    
+    seg_barr <- intersect(sp_segments, barriers)
+    blocked_segs <- data.frame(ids = row.names(seg_barr),
+                               length = SpatialLinesLengths(seg_barr)) %>%
+      separate(ids, c('sp_segments_id', 'barriers_id'), sep = ' ') %>%
+      filter(length >= 0.5 * connections$dist[1]) %>% 
+      mutate(blocked = TRUE,
+             id_id2 = row.names(sp_segments)[as.numeric(sp_segments_id)]) %>%
+      separate(id_id2, c('id', 'id2'), sep = '_') %>%
+      select(id, id2, blocked)
+  } else {
+    blocked_segs <- data.frame(id = character(0), id2 = character(0), 
+                               blocked = logical(0), stringsAsFactors = FALSE)
+  }
+  
+  connections %>%
+    left_join(blocked_segs, by = c('id', 'id2')) %>%
+    replace_na(list(blocked = FALSE)) %>%
+    mutate(mean_u = mapply(FUN = sample_raster, 
+                           x, y, x2, y2, 
+                           MoreArgs = list(r = u)),
+           mean_v = mapply(FUN = sample_raster, 
+                           x, y, x2, y2, 
+                           MoreArgs = list(r = v)),
+           a_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
+           a_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
+           m = sqrt(mean_u^2 + mean_v^2),
+           e_out = ifelse(blocked, 0, mvmt_mod(a_out, m, dist)),
+           e_in = ifelse(blocked, 0, mvmt_mod(a_in, m, dist)))
 }
 
 # Calculate trip costs based on movement model
@@ -145,18 +174,22 @@ interp_grid <- function(grid, origin, res, dir = 'rt_cost') {
   landscape_template <- raster(landscape_mask, res = res)
   idw_mod <- gstat::gstat(formula = rt_cost ~ 1,
                           locations = ~ x + y,
-                          data = grid)
+                          data = filter(grid, !is.na(rt_cost)))
   interpolate(landscape_template, idw_mod) %>%
     mask(landscape_mask)
 }
 
 # Estimate energy landscape
-energy_landscape <- function(origin, radius, res, u, v, mvmt_mod, dir) {
+energy_landscape <- function(origin, radius, res, u, v, mvmt_mod, dir, barriers = NULL) {
   grid_coords <- create_grid(origin, radius, res)
   connections <- connect_neighbors(grid_coords)
-  wind_conns <- annotate_wind(connections, u, v, mvmt_mod)
+  wind_conns <- annotate_wind(connections, u, v, mvmt_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
-  interp_grid(grid_costs, origin, res, dir)
+  el_grid <- interp_grid(grid_costs, origin, res, dir)
+  if(is.null(barriers))
+    el_grid
+  else
+    mask(el_grid, barriers, inverse = TRUE)
 }
 
 plot_energy_landscape <- function(energy_landscape, origin) {
@@ -175,33 +208,3 @@ plot_energy_landscape <- function(energy_landscape, origin) {
     annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
     coord_fixed()
 }
-
-# Test variables
-origin <- c(0, 0)
-radius <- 100
-res <- 10
-wind_u <- matrix(seq(from = -5, to = 10, length.out = 100), nrow = 10) %>%
-  raster(xmn = origin[1] - radius, xmx = origin[1] + radius, 
-         ymn = origin[2] - radius, ymx = origin[2] + radius)
-wind_v <- matrix(seq(from = 5, to = -10, length.out = 100), nrow = 10) %>%
-  raster(xmn = origin[1] - radius, xmx = origin[1] + radius, 
-         ymn = origin[2] - radius, ymx = origin[2] + radius)
-load('data/out/Models/EnergyModels.Rdata')
-load('data/out/Models/SgTCModel.RData')
-mvmt_mod <- function(a, m, d) {
-  t <- a * cos(a)
-  spd <- predict(SgTCModel, 
-                 re.form = NA,
-                 newdata = data.frame(Tailwind = t))
-  flap <- predict(fam, 
-                  newdata = data.frame(WindAngle = a,
-                                       WindSpd = m,
-                                       DeployID = 1145),
-                  exclude = 's(DeployID)',
-                  type = 'response')
-  dur <- spd / d
-  dur * flap
-}
-
-test_el <- energy_landscape(origin, radius, res, wind_u, wind_v, mvmt_mod, 'rt_cost')
-print(plot_energy_landscape(test_el, origin))
