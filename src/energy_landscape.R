@@ -76,7 +76,7 @@ connect_neighbors <- function(grid_coords) {
 }
 
 # Annotate connections with wind conditions and trip predictions
-annotate_wind <- function(connections, u, v, mvmt_mod, barriers) {
+annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
   sample_raster <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
     npoints <- len / xres(r) + 1
@@ -95,22 +95,25 @@ annotate_wind <- function(connections, u, v, mvmt_mod, barriers) {
     result[is.nan(result)] <- 0
     result
   }
-  
+
   if(!is.null(barriers)) {
-    foreach(segment = iterators::iter(connections, by = 'row')) %do% {
+    sp_segments <- foreach(segment = iterators::iter(connections, by = 'row')) %do% {
       line <- with(segment, Line(rbind(c(x, y), c(x2, y2))))
       lines <- with(segment, Lines(list(line), ID = sprintf('%s_%s', id, id2)))
     } %>%
-      SpatialLines() -> sp_segments
+      SpatialLines()
     
-    seg_barr <- intersect(sp_segments, barriers)
-    blocked_segs <- data.frame(ids = row.names(seg_barr),
-                               length = SpatialLinesLengths(seg_barr)) %>%
-      separate(ids, c('sp_segments_id', 'barriers_id'), sep = ' ') %>%
+    sp_segments_df <- SpatialLinesDataFrame(sp_segments, 
+                                            select(connections, id, id2),
+                                            match.ID = FALSE)
+    
+    projection(sp_segments_df) <- projection(barriers)
+    seg_barr <- intersect(sp_segments_df, barriers)
+    blocked_segs <- as.data.frame(seg_barr) %>%
+      select(id, id2) %>%
+      mutate(length = SpatialLinesLengths(seg_barr)) %>%
       filter(length >= 0.5 * connections$dist[1]) %>% 
-      mutate(blocked = TRUE,
-             id_id2 = row.names(sp_segments)[as.numeric(sp_segments_id)]) %>%
-      separate(id_id2, c('id', 'id2'), sep = '_') %>%
+      mutate(blocked = TRUE) %>%
       select(id, id2, blocked)
   } else {
     blocked_segs <- data.frame(id = character(0), id2 = character(0), 
@@ -129,70 +132,105 @@ annotate_wind <- function(connections, u, v, mvmt_mod, barriers) {
            a_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
            a_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
            m = sqrt(mean_u^2 + mean_v^2),
-           e_out = ifelse(blocked, 0, mvmt_mod(a_out, m, dist)),
-           e_in = ifelse(blocked, 0, mvmt_mod(a_in, m, dist)))
+           e_out = ifelse(blocked, 0, e_mod(a_out, m)),
+           e_in = ifelse(blocked, 0, e_mod(a_in, m)),
+           t_out = ifelse(blocked, 0, t_mod(a_out, m, dist)),
+           t_in = ifelse(blocked, 0, t_mod(a_out, m, dist)))
 }
 
 # Calculate trip costs based on movement model
 trip_costs <- function(grid, conns, origin) {
   origin_id <- filter(grid, x == origin[1], y == origin[2])$id
   
-  out_mat <- transmute(conns, id, id2,
-                       weight = e_out) %>%
-    igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid) %>%
-    igraph::distances(graph = .,
-                      mode = 'out', 
-                      weights = NULL, 
-                      algorithm = 'dijkstra')
-  out_cost <- out_mat[origin_id, ]
+  # For faster lookups
+  conns_df <- as.data.frame(conns)
+  row.names(conns_df) <- with(conns_df, paste(id, id2))
   
-  in_mat <- transmute(conns, id, id2,
-                      weight = e_in) %>%
+  e_out_graph <- transmute(conns, id, id2,
+                           weight = e_out) %>%
+    filter(weight > 0) %>%
     igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid) %>%
-    igraph::distances(graph = .,
-                      mode = 'in', 
-                      weights = NULL, 
-                      algorithm = 'dijkstra')
-  in_cost <- in_mat[origin_id, ]
+                                  vertices = grid)
+  e_out_paths <- igraph::all_shortest_paths(e_out_graph,
+                                            origin_id,
+                                            mode = 'out')
+  e_out_costs <- foreach(path = e_out_paths$res, .combine = rbind) %do% {
+    path_char <- as.character(path)
+    steps <- data.frame(from = path_char, 
+                        to = lead(path_char)) %>%
+      head(-1) %>%
+      mutate(e_out = conns_df[paste(from, to), 'e_out'],
+             t_out = conns_df[paste(from, to), 't_out'])
+    summarize(steps,
+              id = last(path_char), 
+              out_cost = sum(e_out * t_out) / sum(t_out),
+              t_out = sum(t_out))
+  }
   
-  mutate(grid,
-         out_cost = out_cost,
-         in_cost = in_cost,
-         rt_cost = out_cost + in_cost)
+  e_in_graph <- transmute(conns, id, id2,
+                           weight = e_in) %>%
+    filter(weight > 0) %>%
+    igraph::graph_from_data_frame(directed = TRUE,
+                                  vertices = grid)
+  e_in_paths <- igraph::all_shortest_paths(e_in_graph,
+                                            origin_id,
+                                            mode = 'in')
+  e_in_costs <- foreach(path = e_in_paths$res, .combine = rbind) %do% {
+    path_char <- as.character(path)
+    steps <- data.frame(from = path_char, 
+                        to = lead(path_char)) %>%
+      head(-1) %>%
+      mutate(e_in = conns_df[paste(from, to), 'e_in'],
+             t_in = conns_df[paste(from, to), 't_in'])
+    summarize(steps,
+              id = last(path_char), 
+              in_cost = sum(e_in * t_in) / sum(t_in),
+              t_in = sum(t_in))
+  }
+  
+  grid %>%
+    left_join(e_out_costs, by = 'id') %>%
+    left_join(e_in_costs, by = 'id') %>%
+    mutate(rt_cost = (out_cost * t_out + in_cost * t_in) / (t_out + t_in))
 }
 
 # Interpolate grid to raster
-interp_grid <- function(grid, origin, res, dir = 'rt_cost') {
-  if(!(dir %in% c('out_cost', 'in_cost', 'rt_cost'))) {
-    stop('"dir" must be one of "out_cost", "in_cost", or "rt_cost"')
-  }
+interp_grid <- function(grid, origin, res, barriers) {
   landscape_mask <- data.frame(x = origin[1], y = origin[2]) %>%
     SpatialPoints %>%
     rgeos::gBuffer(width = radius)
   landscape_template <- raster(landscape_mask, res = res)
-  idw_mod <- gstat::gstat(formula = rt_cost ~ 1,
-                          locations = ~ x + y,
-                          data = filter(grid, !is.na(rt_cost)))
-  interpolate(landscape_template, idw_mod) %>%
-    mask(landscape_mask)
+  
+  rasters <- foreach(dir = c('out_cost', 'in_cost', 'rt_cost')) %do% {
+    gstat_form <- as.formula(sprintf('%s ~ 1', dir))
+    gstat_data <- select(grid, x, y, out_cost, in_cost, rt_cost) %>%
+      na.omit
+    idw_mod <- gstat::gstat(formula = gstat_form,
+                            locations = ~ x + y,
+                            data = gstat_data)
+    result <- interpolate(landscape_template, idw_mod) %>%
+      mask(landscape_mask)
+    if(is.null(barriers))
+      result
+    else
+      mask(result, barriers, inverse = TRUE)
+  }
+  names(rasters) <- c('out_cost', 'in_cost', 'rt_cost')
+  rasters
 }
 
 # Estimate energy landscape
-energy_landscape <- function(origin, radius, res, u, v, mvmt_mod, dir, barriers = NULL) {
+energy_landscape <- function(origin, radius, res, u, v, 
+                             energy_mod, dur_mod, barriers = NULL) {
   grid_coords <- create_grid(origin, radius, res)
   connections <- connect_neighbors(grid_coords)
-  wind_conns <- annotate_wind(connections, u, v, mvmt_mod, barriers)
+  wind_conns <- annotate_wind(connections, u, v, energy_mod, dur_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
-  el_grid <- interp_grid(grid_costs, origin, res, dir)
-  if(is.null(barriers))
-    el_grid
-  else
-    mask(el_grid, barriers, inverse = TRUE)
+  el_grid <- interp_grid(grid_costs, origin, res, barriers)
 }
 
-plot_energy_landscape <- function(energy_landscape, origin) {
+plot_energy_landscape <- function(energy_landscape, origin, 
+                                  dir = 'rt_cost', barriers = NULL) {
   # Utility function for plotting a raster in ggplot
   fortify_raster <- function(r) {
     data.frame(i = seq(ncell(r))) %>%
@@ -201,10 +239,21 @@ plot_energy_landscape <- function(energy_landscape, origin) {
              val = getValues(r))
   }
   
-  ggplot(fortify_raster(energy_landscape),
+  plot_raster <- energy_landscape[[dir]]
+  barriers2 <- crop(barriers, plot_raster)
+  
+  ggplot(fortify_raster(plot_raster),
          aes(x, y, fill = val)) +
     geom_raster() +
-    scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
+    scale_fill_gradientn(colors = colorRamps::matlab.like(4),
+                         na.value = '#00000000') +
     annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
+    if(!is.null(barriers2)) {
+      geom_polygon(aes(long, lat, group = group),
+                   fortify(barriers2),
+                   inherit.aes = FALSE)
+    } else {
+      NULL
+    } +
     coord_fixed()
 }

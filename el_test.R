@@ -1,6 +1,7 @@
 library(dplyr)
 library(lubridate)
 library(raster)
+library(foreach)
 source('src/energy_landscape.R')
 
 # Simple test
@@ -15,22 +16,23 @@ wind_v <- matrix(seq(from = 5, to = -10, length.out = 100), nrow = 10) %>%
   raster(xmn = origin[1] - radius, xmx = origin[1] + radius, 
          ymn = origin[2] - radius, ymx = origin[2] + radius)
 
-## Movement model
+## Movement models
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
-mvmt_mod <- function(a, m, d) {
+energy_mod <- function(a, m) {
+  predict(oam, 
+          newdata = data.frame(WindAngle = a,
+                               WindSpd = m,
+                               DeployID = 1145),
+          exclude = 's(DeployID)',
+          type = 'response')
+}
+dur_mod <- function(a, m, d) {
   t <- a * cos(a)
   spd <- predict(SgTCModel, 
                  re.form = NA,
                  newdata = data.frame(Tailwind = t))
-  odba <- predict(oam, 
-                  newdata = data.frame(WindAngle = a,
-                                       WindSpd = m,
-                                       DeployID = 1145),
-                  exclude = 's(DeployID)',
-                  type = 'response')
-  dur <- d / spd
-  dur * odba
+  d / spd
 }
 
 ## Barriers
@@ -39,17 +41,43 @@ polys <- Polygons(srl = list(poly), ID = 1)
 test_barr <- SpatialPolygons(list(polys))
 
 ## Run test
-test_el <- energy_landscape(origin, radius, res, wind_u, wind_v, mvmt_mod, 'rt_cost', test_barr)
+test_el <- energy_landscape(origin, radius, res, wind_u, wind_v,
+                            energy_mod, dur_mod, test_barr)
 print(plot_energy_landscape(test_el, origin))
 
 # Real data test
+## Movement models
+load('data/out/Models/EnergyModels.Rdata')
+load('data/out/Models/SgTCModel.RData')
+energy_mod <- function(a, m) {
+  predict(oam, 
+          newdata = data.frame(WindAngle = a,
+                               WindSpd = m,
+                               DeployID = 1145),
+          exclude = 's(DeployID)',
+          type = 'response')
+}
+dur_mod <- function(a, m, d) {
+  t <- a * cos(a)
+  spd <- predict(SgTCModel, 
+                 re.form = NA,
+                 newdata = data.frame(Tailwind = t))
+  d / spd
+}
+
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
 hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-kpc_col <- data.frame(x = -159.40, y = 22.23) %>%
-  SpatialPoints(wgs84_prj) %>%
-  spTransform(hi_aea_prj) %>%
-  as.data.frame %>%
-  as.numeric
+project_col <- function(lat, lon) {
+  data.frame(x = lon, y = lat) %>%
+    SpatialPoints(wgs84_prj) %>%
+    spTransform(hi_aea_prj) %>%
+    as.data.frame %>%
+    as.numeric
+}
+kpc_col <- project_col(22.2, -159.4)
+leh_col <- project_col(22.0, -160.1)
+mcb_col <- project_col(21.5, -157.7)
+
 radius <- 250e3
 ## Resolution should be mean transit length (mean transit speed * 20 min)
 res <- 11.4 * 20 * 60
@@ -67,25 +95,6 @@ lat_wind <- RNetCDF::var.get.nc(wind_nc, lat_dim)
 lon_wind <- RNetCDF::var.get.nc(wind_nc, lon_dim)
 u_wind <- RNetCDF::var.get.nc(wind_nc, u_var)
 v_wind <- RNetCDF::var.get.nc(wind_nc, v_var)
-## Wind accessor (index of closest value to x in v)
-get_wind <- function(x, y, t, uv) {
-  if(!any(between(x, min(lon_wind), max(lon_wind))))
-    stop('x out of bounds')
-  if(!any(between(y, min(lat_wind), max(lat_wind))))
-    stop('y out of bounds')
-  if(!any(between(t, min(time_wind), max(time_wind))))
-    stop('t out of bounds')
-  if(!(uv %in% c('u', 'v')))
-    stop('uv must be "u" or "v"')
-  i <- sapply(x, function(x) which.min(abs(x - lon_wind)))
-  j <- sapply(y, function(y) which.min(abs(y - lat_wind)))
-  k <- sapply(t, function(t) which.min(abs(t - time_wind)))
-  if(uv == 'u')
-    wind_arr <- u_wind
-  else
-    wind_arr <- v_wind
-  mapply(function(i, j, k) wind_arr[i, j, k], i, j, k)
-}
 ## Each day's wind is the mean wind between the hours of 7am and 7pm HST
 ## This is when the birds are most active
 daily_wind <- function(t, uv) {
@@ -113,25 +122,50 @@ daily_wind <- function(t, uv) {
 hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land') %>%
   spTransform(hi_aea_prj)
 
-sapply(ymd('2016-05-28', tz = 'US/Hawaii') + days(0:50),
-       function(d) {
-         el <- energy_landscape(kpc_col, radius, res, 
-                                daily_wind(d, 'u'),
-                                daily_wind(d, 'v'),
-                                mvmt_mod, 'rt_cost', hi_land)
-         writeRaster(el, 
-                     sprintf('data/out/EnergyLandscapes/KPC/%s.tif',
-                             format(d, '%Y%m%d')),
-                     'GTiff')
-         p <- plot_energy_landscape(el, kpc_col) +
-           geom_contour(aes(z = val))
-         ggsave(sprintf('data/out/EnergyLandscapes/KPC/%s.png',
-                        format(d, '%Y%m%d')),
-                p, width = 5, height = 5, units = 'in')
-       })
+## try one date
 el_0528 <- energy_landscape(kpc_col, radius, res, 
                             daily_wind(ymd('2016-05-28', tz = 'US/Hawaii'), 'u'),
                             daily_wind(ymd('2016-05-28', tz = 'US/Hawaii'), 'v'),
-                            mvmt_mod, 'rt_cost', hi_land)
-plot_energy_landscape(el_0528, kpc_col)
-beepr::beep()
+                            energy_mod, dur_mod, hi_land);beepr::beep();
+plot_energy_landscape(el_0528, kpc_col, 'rt_cost')
+
+## try lehua
+el_leh_0615 <- energy_landscape(leh_col, radius, res, 
+                                daily_wind(ymd('2016-06-15', tz = 'US/Hawaii'), 'u'),
+                                daily_wind(ymd('2016-06-15', tz = 'US/Hawaii'), 'v'),
+                                energy_mod, dur_mod, hi_land);beepr::beep();
+plot_energy_landscape(el_leh_0615, leh_col, 'rt_cost')
+
+## all dates, all locations, rasters + plots
+foreach(el_date = ymd('2016-05-28', tz = 'US/Hawaii') + days(0:50)) %:%
+  foreach(location = list(kpc_col, leh_col, mcb_col),
+          loc_name = c('KPC', 'LEH', 'MCB')) %do% {
+  el <- energy_landscape(location, radius, res, 
+                         daily_wind(el_date, 'u'),
+                         daily_wind(el_date, 'v'),
+                         energy_mod, dur_mod, hi_land)
+  writeRaster(el[['out_cost']], 
+              sprintf('data/out/EnergyLandscapes/%s/%s_out.tif',
+                      loc_name, format(el_date, '%Y%m%d')),
+              'GTiff')
+  writeRaster(el[['in_cost']], 
+              sprintf('data/out/EnergyLandscapes/%s/%s_in.tif',
+                      loc_name, format(el_date, '%Y%m%d')),
+              'GTiff')
+  writeRaster(el[['rt_cost']], 
+              sprintf('data/out/EnergyLandscapes/%s/%s_rt.tif',
+                      loc_name, format(el_date, '%Y%m%d')),
+              'GTiff')
+  p <- plot_energy_landscape(el, location, 'out_cost', hi_land)
+  ggsave(sprintf('data/out/EnergyLandscapes/%s/%s_out.png',
+                 loc_name, format(el_date, '%Y%m%d')),
+         p, width = 5, height = 5, units = 'in')
+  p <- plot_energy_landscape(el, location, 'in_cost', hi_land)
+  ggsave(sprintf('data/out/EnergyLandscapes/%s/%s_in.png',
+                 loc_name, format(el_date, '%Y%m%d')),
+         p, width = 5, height = 5, units = 'in')
+  p <- plot_energy_landscape(el, location, 'rt_cost', hi_land)
+  ggsave(sprintf('data/out/EnergyLandscapes/%s/%s_rt.png',
+                 loc_name, format(el_date, '%Y%m%d')),
+         p, width = 5, height = 5, units = 'in')
+}
