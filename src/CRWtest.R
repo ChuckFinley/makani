@@ -27,15 +27,16 @@ tracks_prepped <- raw_tracks %>%
   group_by(ID) %>%
   summarize() %>%
   slice(1:10) %>%
-  semi_join(raw_tracks, .) %>%
+  semi_join(raw_tracks, .) %>% 
+  select(x, y, ID, TimestampUTC) %>%
   prepData(type = 'LL')
 
 summary(tracks_prepped)
 
 # Choose parameter initial settings
-params0 <- left_join(select(raw_tracks, ID, TimestampUTC, Behavior), 
-                     select(tracks_prepped, ID, TimestampUTC, step, angle)) %>% 
-  na.omit %>%
+params0 <- left_join(transmute(raw_tracks, as.character(ID), TimestampUTC, Behavior), 
+                     transmute(tracks_prepped, as.character(ID), TimestampUTC, step, angle)) %>% 
+  na.omit %>% 
   group_by(Behavior) %>%
   summarize(meanStep = mean(step),
             sdStep = sd(step),
@@ -63,13 +64,55 @@ plotStates(tracksHMM, '95200001')
 plotPR(tracksHMM)
 
 # Simulate tracks
-sim_tracks <- simData(nbAnimals = 10, 
-                          model = tracksHMM, 
-                          obsPerAnimal = c(340, 1058)) %>%
+sim_tracks <- simData(nbAnimals = 100, 
+                      model = tracksHMM, 
+                      obsPerAnimal = c(340, 1058)) %>%
   mutate(ID = factor(ID))
-ggplot(sim_tracks, aes(x, y, color = ID)) +
-  geom_path() +
-  coord_fixed() +
-  labs(x = 'X (km)',
-       y = 'Y (km)',
-       title = 'Simulated Correlated Random Walks') 
+
+colony_crw_ud <- function(crw, col_coords, radius, resolution) {
+  # Convert to UD
+  wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
+  hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+  
+  crw_sp <- crw %>%
+    mutate(bearing = atan2(y, x) * 180 / pi,
+           dist = sqrt(x^2 + y^2),
+           lon = geosphere::destPoint(col_coords, bearing, dist*1000)[,1],
+           lat = geosphere::destPoint(col_coords, bearing, dist*1000)[,2]) %>%
+    # Select longitude, latitude columns
+    select(lon, lat) %>%
+    # Create SpatialPoints object
+    SpatialPoints(proj4string = wgs84_prj) %>%
+    # Project to Hawaii Albers Equal Area Conic
+    spTransform(hi_aea_prj)
+  crw_ud <- adehabitatHR::kernelUD(crw_sp)
+  # Crop, re-sample, rescale
+  col_extent <- SpatialPoints(matrix(col_coords, ncol = 2),
+                              proj4string = wgs84_prj) %>%
+    spTransform(hi_aea_prj) %>%
+    rgeos::gBuffer(width = radius)
+  col_template <- raster(col_extent)
+  res(col_template) <- resolution
+  rescale <- function(r) {
+    r_min = cellStats(r, "min")
+    r_max = cellStats(r, "max")
+    (r - r_min) / (r_max - r_min)
+  }
+  raster(crw_ud) %>%
+    resample(col_template) %>%
+    crop(col_extent) %>%
+    rescale
+}
+
+crw_res <- res(raster('data/out/EnergyLandscapes/KPC/20160528_in.tif'))
+kpc_ud <- colony_crw_ud(sim_tracks, c(-159.40, 22.23), 250e3, crw_res)
+ggplot(fortify_raster(kpc_crw_ud), aes(x, y, fill = val)) + 
+  geom_raster() +
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4))
+writeRaster(kpc_ud, 'data/out/CyberBirds/KPC_CRW_UD.tif', 'GTiff', overwrite = TRUE)
+
+leh_ud <- colony_crw_ud(sim_tracks, c(-160.1, 22.0), 250e3, crw_res)
+writeRaster(leh_ud, 'data/out/CyberBirds/LEH_CRW_UD.tif', 'GTiff', overwrite = TRUE)
+mcb_ud <- colony_crw_ud(sim_tracks, c(-157.7, 21.5), 250e3, crw_res)
+writeRaster(mcb_ud, 'data/out/CyberBirds/MCB_CRW_UD.tif', 'GTiff', overwrite = TRUE)
+  
