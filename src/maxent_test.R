@@ -7,7 +7,7 @@ library(ggplot2)
 # Spatial data
 ## Colony location and foraging range
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
-hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-157 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
 kpc_col <- data.frame(x = -159.40, y = 22.23)
 kpc_forage <- SpatialPoints(kpc_col,
                             proj4string = wgs84_prj) %>%
@@ -16,16 +16,12 @@ kpc_forage <- SpatialPoints(kpc_col,
   spTransform(wgs84_prj)
 
 ## Land
-hi_shp <- rgdal::readOGR('data/coastline/ne_10m_coastline', 'ne_10m_coastline') %>%
-  spTransform(wgs84_prj) %>%
-  rgeos::gIntersection(kpc_forage, byid = TRUE, drop_lower_td = TRUE) %>%
-  sf::st_as_sf() %>%
-  sf::st_polygonize() %>%
-  as('Spatial')
+hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land')
 
 # Environmental data
 sst_id <- 'jplG1SST'
-chla_id <- 'erdMH1pp1day'
+#chla_id <- 'erdMH1pp1day'
+chla_id <- 'mbchla14day'
 bathy_id <- 'ETOPO180'
 env_x <- bbox(kpc_forage)['x',]
 env_y <- bbox(kpc_forage)['y',] 
@@ -60,22 +56,25 @@ fortify_xtracto <- function(xtracto_result) {
 
 ## Plot variables
 fortify_xtracto(sst_data) %>%
-  filter(time == first(time)) %>%
+  filter(t == first(t)) %>%
   ggplot(aes(x = x, y = y, fill = value)) + 
-  geom_raster()
+  geom_raster() +
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4))
 
 fortify_xtracto(chl_data) %>%
-  filter(time == first(time)) %>%
-  ggplot(aes(x = x, y = y, fill = value)) + 
-  geom_raster()
+  filter(t == first(t)) %>%
+  ggplot(aes(x = x, y = y, fill = log(value))) + 
+  geom_raster() +
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4))
 
 fortify_xtracto(bathy_data) %>%
   ggplot(aes(x = x, y = y, fill = value)) + 
-  geom_raster()
+  geom_raster() +
+  scale_fill_gradientn(colors = grDevices::rainbow(6))
 
 ggplot() +
   geom_polygon(aes(long, lat, group = group), 
-               data = fortify(hi_shp)) +
+               data = fortify(hi_land)) +
   geom_polygon(aes(long, lat, group = group),
                data = fortify(kpc_forage),
                fill = NA,
@@ -96,7 +95,8 @@ tidytracks_db <- tbl(mhi_db, 'TidyTracks')
 num_time <- as.numeric(lubridate::ymd(env_t, tz = 'UTC'))
 rfbo_wk1 <- tidytracks_db %>%
   filter(TimestampUTC >= num_time[1],
-         TimestampUTC <= num_time[2]) %>%
+         TimestampUTC <= num_time[2],
+         DistToCol <= 250e3) %>%
   collect
 
 ggplot(rfbo_wk1, aes(Longitude, 
@@ -105,13 +105,13 @@ ggplot(rfbo_wk1, aes(Longitude,
   geom_path() +
   guides(color = FALSE)
 
-### Sample 10 points per trip
+### Sample 5 points per trip
 set.seed(1705)
 rfbo_sample <- rfbo_wk1 %>%
   filter(PositionLag <= 180) %>%
   group_by(TripID) %>%
   filter(n() >= 20) %>%
-  sample_n(10) %>%
+  sample_n(5) %>%
   ungroup
 
 ggplot(rfbo_sample, 
@@ -136,7 +136,7 @@ rfbo_env <- rfbo_sample %>%
          chla = xtracto(chla_id, 
                         Longitude,
                         Latitude,
-                        dbdate_to_ymd(TimestampUTC))$`mean productivity`,
+                        dbdate_to_ymd(TimestampUTC))$`mean chlorophyll`,
          bathy = xtracto(bathy_id, 
                          Longitude,
                          Latitude,
@@ -149,3 +149,39 @@ rfbo_env <- rfbo_sample %>%
             chla, 
             bathy)
 readr::write_csv(rfbo_env, 'data/out/Presences/rfbo_sample.csv')
+
+## Annotate presence with energy landscape
+sample_el <- function(x, y, t, col) {
+  if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
+    stop('invalid colony')
+  raster_path <- sprintf('data/out/EnergyLandscapes/%s/%s_rt.tif',
+                         col,
+                         format(t, '%Y%m%d'))
+  if(!file.exists(raster_path))
+    stop('no raster exists')
+  wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
+  hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+  rescale <- function(r) {
+    r_min = cellStats(r, "min")
+    r_max = cellStats(r, "max")
+    (r - r_min) / (r_max - r_min)
+  }
+  mapply(FUN = function(x, y, path) {
+    r <- raster(path, crs = hi_aea_prj) %>%
+      projectRaster(crs = wgs84_prj) %>%
+      rescale
+    if(!between(x, extent(r)[1], extent(r)[2]) ||
+       !between(y, extent(r)[3], extent(r)[4]))
+      stop(sprintf('point out of extent',
+                   x, y, path, 
+                   extent(r)[1], extent(r)[3], extent(r)[2], extent(r)[4]))
+    extract(r, cellFromXY(r, c(x, y)))
+  })
+}
+
+rfbo_env2 <- mutate(rfbo_env,
+                    Ert = sample_el, Longitude, Latitude, LocDate, 'KPC',
+                    D2C = geosphere::distGeo(cbind(Longitude, Latitude),
+                                             kpc_col),
+                    UD = )
+

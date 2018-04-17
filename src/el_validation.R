@@ -13,7 +13,7 @@ kpc_tracks <- src_sqlite('data/MHI_GPS.sqlite') %>%
 ## Generate utilization distribution
 ### Define projections (WGS84 and Hawaii Albers Equal Area Conic)
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
-hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-157 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
 ### Define extent
 kpc_col <- data.frame(x = -159.3997, y = 22.22888)
 kpc_extent <- SpatialPoints(kpc_col,
