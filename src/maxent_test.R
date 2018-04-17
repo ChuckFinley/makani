@@ -150,14 +150,15 @@ rfbo_env <- rfbo_sample %>%
             bathy)
 readr::write_csv(rfbo_env, 'data/out/Presences/rfbo_sample.csv')
 
-## Annotate presence with energy landscape
+## Accessibility variables
 sample_el <- function(x, y, t, col) {
   if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
     stop('invalid colony')
+  t2 <- ymd(t)
   raster_path <- sprintf('data/out/EnergyLandscapes/%s/%s_rt.tif',
                          col,
-                         format(t, '%Y%m%d'))
-  if(!file.exists(raster_path))
+                         format(t2, '%Y%m%d'))
+  if(!any(file.exists(raster_path)))
     stop('no raster exists')
   wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
   hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
@@ -172,16 +173,107 @@ sample_el <- function(x, y, t, col) {
       rescale
     if(!between(x, extent(r)[1], extent(r)[2]) ||
        !between(y, extent(r)[3], extent(r)[4]))
-      stop(sprintf('point out of extent',
-                   x, y, path, 
-                   extent(r)[1], extent(r)[3], extent(r)[2], extent(r)[4]))
-    extract(r, cellFromXY(r, c(x, y)))
-  })
+      stop('point out of extent')
+    raster::extract(r, cellFromXY(r, c(x, y)))
+  },
+  x, y, raster_path)
 }
-
+sample_ud <- function(x, y, col) {
+  if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
+    stop('invalid colony')
+  raster_path <- sprintf('data/out/CyberBirds/%s_CRW_UD.tif', col)
+  if(!any(file.exists(raster_path)))
+    stop('no raster exists')
+  wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
+  hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+  mapply(FUN = function(x, y, path) {
+    r <- raster(path) %>%
+      projectRaster(crs = wgs84_prj)
+    if(!between(x, extent(r)[1], extent(r)[2]) ||
+       !between(y, extent(r)[3], extent(r)[4]))
+      stop('point out of extent')
+    raster::extract(r, cellFromXY(r, c(x, y)))
+  },
+  x, y, raster_path)
+}
 rfbo_env2 <- mutate(rfbo_env,
-                    Ert = sample_el, Longitude, Latitude, LocDate, 'KPC',
+                    Ert = sample_el(Longitude, Latitude, LocDate, 'KPC'),
                     D2C = geosphere::distGeo(cbind(Longitude, Latitude),
                                              kpc_col),
-                    UD = )
+                    UD = sample_ud(Longitude, Latitude, 'KPC'))
+readr::write_csv(rfbo_env2, 'data/out/Presences/rfbo_accessible.csv')
+# Environment only
+rfbo_env2 %>%
+  transmute(Species = 'RFBO',
+            Longitude,
+            Latitude,
+            sst,
+            chla,
+            bathy) %>%
+  na.omit %>%
+  readr::write_csv('data/out/Presences/rfbo_envonly.csv')
+# Energy landscape
+rfbo_env2 %>%
+  transmute(Species = 'RFBO',
+            Longitude,
+            Latitude,
+            sst,
+            chla,
+            bathy,
+            Ert) %>%
+  na.omit %>%
+  readr::write_csv('data/out/Presences/rfbo_ert.csv')
+# CRW null model
+rfbo_env2 %>%
+  transmute(Species = 'RFBO',
+            Longitude,
+            Latitude,
+            sst,
+            chla,
+            bathy,
+            UD) %>%
+  na.omit %>%
+  readr::write_csv('data/out/Presences/rfbo_crw.csv')
+# D2C null model
+rfbo_env2 %>%
+  transmute(Species = 'RFBO',
+            Longitude,
+            Latitude,
+            sst,
+            chla,
+            bathy,
+            D2C) %>%
+  na.omit %>%
+  readr::write_csv('data/out/Presences/rfbo_d2c.csv')
 
+## Background points
+t_rng <- range(rfbo_wk1$TimestampUTC) %>% dbdate_to_ymd
+n <- 1000
+set.seed(1022)
+point_sample <- spsample(kpc_forage, n, 'regular')
+set.seed(1023)
+t_sample <- sample(t_rng, n, replace = TRUE)
+background <- data.frame(Longitude = point_sample@coords[,1],
+                         Latitude = point_sample@coords[,2],
+                         LocDate = t_sample) %>%
+  mutate(sst = xtracto(sst_id, 
+                       Longitude,
+                       Latitude,
+                       LocDate)$`mean SST`,
+         chla = xtracto(chla_id, 
+                        Longitude,
+                        Latitude,
+                        LocDate)$`mean chlorophyll`,
+         bathy = xtracto(bathy_id, 
+                         Longitude,
+                         Latitude,
+                         LocDate)$`mean altitude`,
+         Ert = sample_el(Longitude, Latitude, LocDate, 'KPC'),
+         D2C = geosphere::distGeo(cbind(Longitude, Latitude),
+                                  kpc_col),
+         UD = sample_ud(Longitude, Latitude, 'KPC')) 
+background %>%
+  transmute(Species = 'RFBO', Longitude, Latitude, sst, chla, bathy, Ert, D2C, UD) %>%
+  na.omit %>%
+  readr::write_csv('data/out/Presences/kpc_background.csv')
+         
