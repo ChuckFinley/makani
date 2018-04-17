@@ -1,0 +1,14 @@
+Tue Apr 17 11:16:46 PDT 2018
+MaxEnt version 3.4.1
+Reading file kpc_background.csv
+readGrid: max memory 954728448, total allocated 64487424, free 49727448, used 14759976, increment 14759976
+Error reading files: java.io.IOException: File /Users/maxczap/Projects/makani/data/out/Presences/kpc_background.csv: For input string: "2016-06-01"
+java.io.IOException: File /Users/maxczap/Projects/makani/data/out/Presences/kpc_background.csv: For input string: "2016-06-01"
+	at density.GridSetFromFile.<init>(GridSetFromFile.java:91)
+	at density.Runner.initializeGrids(Runner.java:188)
+	at density.Runner.start(Runner.java:304)
+	at density.GUI$7.construct(GUI.java:342)
+	at density.SwingWorker$2.run(SwingWorker.java:131)
+	at java.lang.Thread.run(Thread.java:745)
+Time since start: 7.326
+Ending

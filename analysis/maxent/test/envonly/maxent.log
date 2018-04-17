@@ -1,0 +1,80 @@
+Tue Apr 17 11:44:35 PDT 2018
+MaxEnt version 3.4.1
+Reading file kpc_background.csv
+readGrid: max memory 954728448, total allocated 64487424, free 55921696, used 8565728, increment 8565728
+Reading samples from rfbo_envonly.csv
+Read samples: max memory 954728448, total allocated 64487424, free 49688504, used 14798920, increment 6233192
+Adding samples to background in feature space
+Command line used: 
+Command line to repeat: java density.MaxEnt nowarnings noprefixes responsecurves nopictures outputformat=raw outputdirectory=/Users/maxczap/Projects/makani/analysis/maxent/test/envonly samplesfile=/Users/maxczap/Projects/makani/data/out/Presences/rfbo_envonly.csv environmentallayers=/Users/maxczap/Projects/makani/data/out/Presences/kpc_background.csv -N D2C -N Ert -N UD
+Species: RFBO
+Layers: bathy chla sst
+Layertypes: Continuous Continuous Continuous
+responsecurves: true
+pictures: false
+outputformat: raw
+outputdirectory: /Users/maxczap/Projects/makani/analysis/maxent/test/envonly
+samplesfile: /Users/maxczap/Projects/makani/data/out/Presences/rfbo_envonly.csv
+environmentallayers: /Users/maxczap/Projects/makani/data/out/Presences/kpc_background.csv
+
+getSamples: max memory 954728448, total allocated 64487424, free 46599120, used 17888304, increment 3089384
+Making features
+makeFeatures: max memory 954728448, total allocated 64487424, free 46426136, used 18061288, increment 172984
+RFBO: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+212 samples
+Density: max memory 954728448, total allocated 64487424, free 45052888, used 19434536, increment 1373248
+linearPredictor: max memory 954728448, total allocated 64487424, free 45052888, used 19434536, increment 0
+FeaturedSpace: max memory 954728448, total allocated 64487424, free 45052888, used 19434536, increment 0
+Sequential: max memory 954728448, total allocated 64487424, free 44881264, used 19606160, increment 171624
+Initial loss: 7.080026499922591
+Time since start: 1.41
+500: time = 1.210000 loss = 6.669617
+Resulting gain: 0.4104093120810699
+Projecting...
+Writing file /Users/maxczap/Projects/makani/analysis/maxent/test/envonly/RFBO.csv
+RFBO response curves
+Response curve: only bathy
+Making features
+makeFeatures: max memory 954728448, total allocated 82837504, free 39768560, used 43068944, increment 23462784
+RFBO bathy: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+212 samples
+Density: max memory 954728448, total allocated 82837504, free 39345432, used 43492072, increment 423128
+linearPredictor: max memory 954728448, total allocated 82837504, free 39345432, used 43492072, increment 0
+FeaturedSpace: max memory 954728448, total allocated 82837504, free 39345432, used 43492072, increment 0
+Sequential: max memory 954728448, total allocated 82837504, free 39345432, used 43492072, increment 0
+Initial loss: 7.080026499922591
+Time since start: 2.92
+460: time = 0.569000 loss = 6.931029
+Resulting gain: 0.1489970673072598
+RFBO response curves
+Response curve: only chla
+Making features
+makeFeatures: max memory 954728448, total allocated 84410368, free 57095120, used 27315248, increment -16176824
+RFBO chla: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+212 samples
+Density: max memory 954728448, total allocated 84410368, free 56627416, used 27782952, increment 467704
+linearPredictor: max memory 954728448, total allocated 84410368, free 56627416, used 27782952, increment 0
+FeaturedSpace: max memory 954728448, total allocated 84410368, free 56627416, used 27782952, increment 0
+Sequential: max memory 954728448, total allocated 84410368, free 56627416, used 27782952, increment 0
+Initial loss: 7.080026499922591
+140: time = 0.212000 loss = 7.072095
+Resulting gain: 0.007931052325764298
+RFBO response curves
+Response curve: only sst
+Making features
+makeFeatures: max memory 954728448, total allocated 84410368, free 49944128, used 34466240, increment 6683288
+RFBO sst: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+212 samples
+Density: max memory 954728448, total allocated 84410368, free 49944128, used 34466240, increment 0
+linearPredictor: max memory 954728448, total allocated 84410368, free 49944128, used 34466240, increment 0
+FeaturedSpace: max memory 954728448, total allocated 84410368, free 49944128, used 34466240, increment 0
+Sequential: max memory 954728448, total allocated 84410368, free 49944128, used 34466240, increment 0
+Initial loss: 7.080026499922591
+380: time = 0.382000 loss = 6.769141
+Resulting gain: 0.3108858962134713
+RFBO response curves
+Ending
