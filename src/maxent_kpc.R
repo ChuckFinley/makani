@@ -47,12 +47,12 @@ rfbo_sample <- rfbo_tracks %>%
   ungroup
 
 # Background records
-background_kpc <- spsample(kpc_forage, 1e4, type = 'random') %>%
+background_kpc <- spsample(kpc_forage, 1e3, type = 'random') %>%
   as.data.frame %>%
   transmute(Species = 'RFBO',
             Longitude = x,
             Latitude = y,
-            LocDate = sample(t_rng, 1e4, replace = TRUE))
+            LocDate = sample(t_rng, 1e3, replace = TRUE))
 
 # Annotation
 ## Annotate presences with environmental data
@@ -80,17 +80,17 @@ anom_arr <- RNetCDF::var.get.nc(sst_nc, anom_var)
 extract_sst <- function(x, y, t) {
   t <- as.numeric(t)
   x <- (x + 360) %% 360
-  t_i <- round(length(time_sst) * (t_max - t) / (t_max - t_min))
-  x_i <- round(length(lon_sst) * (x_max - x) / (x_max - x_min))
-  y_i <- round(length(lat_sst) * (y_max - y) / (y_max - y_min))
+  t_i <- round((length(time_sst) - 1) * (t - t_min) / (t_max - t_min)) + 1
+  x_i <- round((length(lon_sst) - 1) * (x - x_min) / (x_max - x_min)) + 1
+  y_i <- round((length(lat_sst) - 1) * (y - y_min) / (y_max - y_min)) + 1
   sst_arr[cbind(x_i, y_i, t_i)]
 }
 extract_anom <- function(x, y, t) {
   t <- as.numeric(t)
   x <- (x + 360) %% 360
-  t_i <- round(length(time_sst) * (t_max - t) / (t_max - t_min))
-  x_i <- round(length(lon_sst) * (x_max - x) / (x_max - x_min))
-  y_i <- round(length(lat_sst) * (y_max - y) / (y_max - y_min))
+  t_i <- round((length(time_sst) - 1) * (t - t_min) / (t_max - t_min)) + 1
+  x_i <- round((length(lon_sst) - 1) * (x - x_min) / (x_max - x_min)) + 1
+  y_i <- round((length(lat_sst) - 1) * (y - y_min) / (y_max - y_min)) + 1
   anom_arr[cbind(x_i, y_i, t_i)]
 }
 bathy_r <- raster('data/bathy/etopo1.tif')
