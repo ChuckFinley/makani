@@ -77,7 +77,7 @@ daily_wind <- function(t, uv) {
     ymd_h(tz = 'US/Hawaii')
   ks <- sapply(wind_times, function(t) which.min(abs(t - time_wind)))
   wgs84_wind <- apply(wind_arr[,,ks], c(1,2), mean, na.rm = TRUE) %>%
-    t %>%
+    t %>% apply(2, rev) %>%
     raster(xmn = min(lon_wind),
            xmx = max(lon_wind),
            ymn = min(lat_wind),
@@ -98,12 +98,12 @@ leh_depsess <- c(seq(ymd('2014-05-13'), ymd('2014-05-18'), by = '1 day'),
                  seq(ymd('2014-06-13'), ymd('2014-06-18'), by = '1 day'),
                  seq(ymd('2014-07-14'), ymd('2014-07-20'), by = '1 day'),
                  seq(ymd('2015-05-26'), ymd('2015-06-04'), by = '1 day'),
-                 seq(ymd('2015-06-27'), ymd('2015-07-05'), by = '1 day'))
+                 seq(ymd('2015-06-27'), ymd('2015-07-08'), by = '1 day'))
 leh_dates <- c(leh_depsess, kpc_dates)
 ## There was one MCB deployment in 2014 and two in 2015
 mcb_depsess <- c(seq(ymd('2014-06-01'), ymd('2014-06-07'), by = '1 day'),
                  seq(ymd('2015-06-17'), ymd('2015-07-06'), by = '1 day'),
-                 seq(ymd('2015-06-29'), ymd('2015-07-08'), by = '1 day'))
+                 seq(ymd('2015-06-29'), ymd('2015-07-09'), by = '1 day'))
 mcb_dates <- c(mcb_depsess, kpc_dates)
 
 # Generate energy landscapes
@@ -112,7 +112,7 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
         col_loc = list(kpc_hi_aea, leh_hi_aea, mcb_hi_aea),
         col_dates = list(kpc_dates, leh_dates, mcb_dates)) %do% {
   ## Foreach date...        
-  foreach(d = kpc_dates) %do% {
+  foreach(d = col_dates) %do% {
     el <- energy_landscape(col_loc, el_radius, el_res, 
                            daily_wind(d, 'u'),
                            daily_wind(d, 'v'),
