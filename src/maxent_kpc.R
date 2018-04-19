@@ -2,6 +2,7 @@ library(sp)
 library(dplyr)
 library(ggplot2)
 library(lubridate)
+library(raster)
 
 # Spatial data
 ## Colony location and foraging range
@@ -16,11 +17,6 @@ kpc_forage <- SpatialPoints(kpc_col,
 
 ## Land
 hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land')
-
-## Xtractomatic data ids
-sst_id <- 'jplG1SST'
-chla_id <- 'mbchla14day'
-bathy_id <- 'ETOPO180'
 
 # Presence records
 ## DB connections
@@ -38,40 +34,79 @@ rfbo_tracks <- tidytracks_db %>%
          DistToCol <= 250e3) %>%
   collect
 
-### Sample 5 points per trip
+### Sample 5 points per bird per day
 set.seed(1705)
+dbdate_to_posix <- function(t)
+  as.POSIXct(t, origin = ymd('1970-01-01', tz = 'UTC'), tz = 'UTC')
 rfbo_sample <- rfbo_tracks %>%
   filter(PositionLag <= 180) %>%
-  group_by(TripID) %>%
+  mutate(TimestampUTC = dbdate_to_posix(TimestampUTC)) %>%
+  group_by(DeployID, as.Date(TimestampUTC)) %>%
   filter(n() >= 20) %>%
   sample_n(5) %>%
   ungroup
 
+# Background records
+background_kpc <- spsample(kpc_forage, 1e4, type = 'random') %>%
+  as.data.frame %>%
+  transmute(Species = 'RFBO',
+            Longitude = x,
+            Latitude = y,
+            LocDate = sample(t_rng, 1e4, replace = TRUE))
+
 # Annotation
 ## Annotate presences with environmental data
-dbdate_to_ymd <- function(dbdate) {
+dbdate_to_posixct <- function(dbdate) {
   posix_origin <- ymd('1970-01-01', tz = 'utc')
-  as.POSIXct(dbdate, tz = 'utc', origin = posix_origin) %>%
-    format('%Y-%m-%d')
+  as.POSIXct(dbdate, tz = 'utc', origin = posix_origin)
 }
+sst_nc <- RNetCDF::open.nc('data/sst/2016sst.nc')
+time_dim <- 'time'     # seconds since 1970-01-01 00:00:00.000 UTC
+lat_dim <- 'latitude'  # degrees north
+lon_dim <- 'longitude' # degrees east
+sst_var <- 'sst'
+anom_var <- 'anom'
+time_sst <- RNetCDF::var.get.nc(sst_nc, time_dim)
+t_max <- max(time_sst)
+t_min <- min(time_sst)
+lat_sst <- RNetCDF::var.get.nc(sst_nc, lat_dim)
+y_max <- max(lat_sst)
+y_min <- min(lat_sst)
+lon_sst <- RNetCDF::var.get.nc(sst_nc, lon_dim)
+x_max <- max(lon_sst)
+x_min <- min(lon_sst)
+sst_arr <- RNetCDF::var.get.nc(sst_nc, sst_var)
+anom_arr <- RNetCDF::var.get.nc(sst_nc, anom_var)
 extract_sst <- function(x, y, t) {
-  xtractomatic::xtracto(sst_id, x, y, dbdate_to_ymd(t))$`mean SST`
+  t <- as.numeric(t)
+  x <- (x + 360) %% 360
+  t_i <- round(length(time_sst) * (t_max - t) / (t_max - t_min))
+  x_i <- round(length(lon_sst) * (x_max - x) / (x_max - x_min))
+  y_i <- round(length(lat_sst) * (y_max - y) / (y_max - y_min))
+  sst_arr[cbind(x_i, y_i, t_i)]
 }
-extract_chl <- function(x, y, t) {
-  xtractomatic::xtracto(chla_id, x, y, dbdate_to_ymd(t))$`mean chlorophyll`
+extract_anom <- function(x, y, t) {
+  t <- as.numeric(t)
+  x <- (x + 360) %% 360
+  t_i <- round(length(time_sst) * (t_max - t) / (t_max - t_min))
+  x_i <- round(length(lon_sst) * (x_max - x) / (x_max - x_min))
+  y_i <- round(length(lat_sst) * (y_max - y) / (y_max - y_min))
+  anom_arr[cbind(x_i, y_i, t_i)]
 }
+bathy_r <- raster('data/bathy/etopo1.tif')
 extract_bathy <- function(x, y) {
-  xtractomatic::xtracto(sst_id, x, y)$`mean altitude`
+  raster::extract(bathy_r, cbind(x, y))
 }
 rfbo_env <- rfbo_sample %>%
   mutate(sst = extract_sst(Longitude, Latitude, TimestampUTC),
-         chla = extract_chl(Longitude, Latitude, TimestampUTC),
+         anom = extract_anom(Longitude, Latitude, TimestampUTC),
          bathy = extract_bathy(Longitude, Latitude)) %>%
   transmute(Species = 'RFBO',
             Longitude, 
             Latitude, 
+            LocDate = as.Date(TimestampUTC),
             sst, 
-            chla, 
+            anom, 
             bathy) %>%
   na.omit
 
@@ -79,23 +114,16 @@ rfbo_env <- rfbo_sample %>%
 extract_el <- function(x, y, t, col) {
   if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
     stop('invalid colony')
-  t2 <- ymd(t)
-  raster_path <- sprintf('data/out/EnergyLandscapes/%s/%s_rt.tif',
+  raster_path <- sprintf('data/out/EnergyLandscapes2/all/%s_%s_rt.tif',
                          col,
-                         format(t2, '%Y%m%d'))
-  if(!any(file.exists(raster_path)))
+                         format(t, '%Y%m%d'))
+  if(!all(file.exists(raster_path)))
     stop('no raster exists')
   wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
   hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-  rescale <- function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  }
   mapply(FUN = function(x, y, path) {
     r <- raster(path, crs = hi_aea_prj) %>%
-      projectRaster(crs = wgs84_prj) %>%
-      rescale
+      projectRaster(crs = wgs84_prj)
     if(!between(x, extent(r)[1], extent(r)[2]) ||
        !between(y, extent(r)[3], extent(r)[4]))
       stop('point out of extent')
@@ -125,6 +153,28 @@ rfbo_acc <- mutate(rfbo_env,
                    Ert = extract_el(Longitude, Latitude, LocDate, 'KPC'),
                    D2C = geosphere::distGeo(cbind(Longitude, Latitude),
                                             kpc_col),
-                   UD = sample_ud(Longitude, Latitude, 'KPC'))
+                   UD = extract_ud(Longitude, Latitude, 'KPC')) %>%
+  na.omit
+readr::write_csv(rfbo_acc, 'data/out/Presences/rfbo_accessible.csv')
 
-                   
+## Annotate background with environmental data  
+background_env <- background_kpc %>%
+  mutate(sst = extract_sst(Longitude, Latitude, LocDate),
+         anom = extract_anom(Longitude, Latitude, LocDate),
+         bathy = extract_bathy(Longitude, Latitude)) %>%
+  transmute(Species = 'RFBO',
+            Longitude, 
+            Latitude, 
+            LocDate,
+            sst, 
+            anom, 
+            bathy) %>%
+  na.omit 
+background_acc <- mutate(background_env,
+                         Ert = extract_el(Longitude, Latitude, LocDate, 'KPC'),
+                         D2C = geosphere::distGeo(cbind(Longitude, Latitude),
+                                                  kpc_col),
+                         UD = extract_ud(Longitude, Latitude, 'KPC')) %>%
+  na.omit
+
+readr::write_csv(background_acc, 'data/out/Presences/kpc_background.csv')
