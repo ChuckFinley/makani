@@ -68,6 +68,7 @@ connect_neighbors <- function(grid_coords) {
   grid_coords %>%
     rowwise %>%
     do(neighbors(.$i, .$j)) %>%
+    ungroup %>%
     right_join(grid_coords, by = c('i' = 'i', 'j' = 'j')) %>%
     right_join(grid_coords2, by = c('i2' = 'i', 'j2' = 'j')) %>%
     mutate(azimuth_out = atan2(y2 - y, x2 - x),
@@ -77,21 +78,24 @@ connect_neighbors <- function(grid_coords) {
 
 # Annotate connections with wind conditions and trip predictions
 annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
-  sample_raster <- function(x1, y1, x2, y2, r) {
+  extract_line <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
     npoints <- len / xres(r) + 1
-    points <- approx(c(x1, x2), c(y1, y2), n = npoints)
-    cbind(points$x, points$y) %>%
-      cellFromXY(r, .) %>%
-      raster::extract(r, .) %>%
-      mean(na.rm = TRUE)
+    cbind(x1, x2, y1, y2, npoints) %>% 
+      apply(1, function(row) {
+        ptlist <- approx(row[1:2], row[3:4], n = row[5])
+        raster::extract(r, cbind(ptlist$x, ptlist$y)) %>%
+          mean(na.rm = TRUE)
+      })
   }
   
-  vector_angle <- function(u, v) {
+  vector_angle <- function(ux, uy, vx, vy) {
     dot <- function(u, v) sum(u * v)
     norm <- function(u) sqrt(sum(u^2))
-    result <- acos(dot(u, v) / (norm(u) * norm(v))) %>%
+    angle <- function(u, v) acos(dot(u, v) / (norm(u) * norm(v))) %>%
       round(digits = 3)
+    result <- apply(cbind(ux, uy, vx, vy), 1,
+                    function(row) angle(row[1:2], row[3:4]))
     result[is.nan(result)] <- 0
     result
   }
@@ -106,6 +110,7 @@ annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
     sp_segments_df <- SpatialLinesDataFrame(sp_segments, 
                                             select(connections, id, id2),
                                             match.ID = FALSE)
+    sp_segments_df@data <- as.data.frame(sp_segments_df@data)
     
     projection(sp_segments_df) <- projection(barriers)
     seg_barr <- intersect(sp_segments_df, barriers)
@@ -123,14 +128,10 @@ annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
   connections %>%
     left_join(blocked_segs, by = c('id', 'id2')) %>%
     replace_na(list(blocked = FALSE)) %>%
-    mutate(mean_u = mapply(FUN = sample_raster, 
-                           x, y, x2, y2, 
-                           MoreArgs = list(r = u)),
-           mean_v = mapply(FUN = sample_raster, 
-                           x, y, x2, y2, 
-                           MoreArgs = list(r = v)),
-           a_out = vector_angle(c(x2 - x, y2 - y), c(mean_u, mean_v)),
-           a_in = vector_angle(c(x - x2, y - y2), c(mean_u, mean_v)),
+    mutate(mean_u = extract_line(x, y, x2, y2, u),
+           mean_v = extract_line(x, y, x2, y2, v),
+           a_out = vector_angle(x2 - x, y2 - y, mean_u, mean_v),
+           a_in = vector_angle(x - x2, y - y2, mean_u, mean_v),
            m = sqrt(mean_u^2 + mean_v^2),
            e_out = ifelse(blocked, 0, e_mod(a_out, m)),
            e_in = ifelse(blocked, 0, e_mod(a_in, m)),
@@ -195,7 +196,7 @@ trip_costs <- function(grid, conns, origin) {
 }
 
 # Interpolate grid to raster
-interp_grid <- function(grid, origin, res, barriers) {
+interp_grid <- function(grid, origin, radius, res, barriers) {
   landscape_mask <- data.frame(x = origin[1], y = origin[2]) %>%
     SpatialPoints %>%
     rgeos::gBuffer(width = radius)
@@ -219,6 +220,16 @@ interp_grid <- function(grid, origin, res, barriers) {
   rasters
 }
 
+# Rescale rasters to [0, 1] where 1 is most accessible
+rescale <- function(rasters) {
+  lapply(rasters,
+         function(r) {
+           r_min = cellStats(r, "min")
+           r_max = cellStats(r, "max")
+           1 - (r - r_min) / (r_max - r_min)
+         })
+}
+
 # Estimate energy landscape
 energy_landscape <- function(origin, radius, res, u, v, 
                              energy_mod, dur_mod, barriers = NULL) {
@@ -226,7 +237,8 @@ energy_landscape <- function(origin, radius, res, u, v,
   connections <- connect_neighbors(grid_coords)
   wind_conns <- annotate_wind(connections, u, v, energy_mod, dur_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
-  el_grid <- interp_grid(grid_costs, origin, res, barriers)
+  el_raster <- interp_grid(grid_costs, origin, radius, res, barriers)
+  norm_raster <- rescale(el_raster)
 }
 
 plot_energy_landscape <- function(energy_landscape, origin, 

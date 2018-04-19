@@ -26,8 +26,8 @@ dur_mod <- function(a, m, d) {
 # Spatial data
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
 hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-project_col <- function(lat, lon) {
-  data.frame(x = lon, y = lat) %>%
+project_col <- function(latlon) {
+  data.frame(x = latlon[2], y = latlon[1]) %>%
     SpatialPoints(wgs84_prj) %>%
     spTransform(hi_aea_prj) %>%
     as.data.frame %>%
@@ -51,8 +51,9 @@ el_res <- 11.4 * 20 * 60
 ## Each day's wind is the mean wind between the hours of 7am and 7pm HST
 ## This is when the birds are most active
 daily_wind <- function(t, uv) {
-  wind_path <- sprintf('data/wind/%i_WRF_HI/WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc',
+  wind_path <- sprintf('data/wind/WRF_HI/%i_WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc',
                        year(t))
+  
   if(!file.exists(wind_path))
     stop('wind file doesn\'t exist')
   if(!(uv %in% c('u', 'v')))
@@ -89,37 +90,21 @@ daily_wind <- function(t, uv) {
 }
 
 # Temporal range
-## For KPC, valid dates are May 29 - July 17, 2016 (see ch. 1 fig. 2)
-kpc_dates <- seq(ymd('2016-05-29'), ymd('2016-07-17'), by = '1 day')
+## For KPC, valid dates are May 28 - July 17, 2016 (see ch. 1 fig. 2)
+kpc_dates <- seq(ymd('2016-05-28'), ymd('2016-07-17'), by = '1 day')
 ## There were 3 LEH deployments in 2014 and 2 in 2015. Generate ELs for
 ## all these dates plus the KPC date range
-leh_depsess <- list(seq(ymd('2014-05-13', tz = 'US/Hawaii'), 
-                        ymd('2014-05-18', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2014-06-13', tz = 'US/Hawaii'), 
-                        ymd('2014-06-18', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2014-07-14', tz = 'US/Hawaii'), 
-                        ymd('2014-07-20', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2015-05-26', tz = 'US/Hawaii'), 
-                        ymd('2015-06-04', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2015-06-27', tz = 'US/Hawaii'), 
-                        ymd('2015-07-05', tz = 'US/Hawaii'), 
-                        by = '1 day'))
-leh_dates <- c(unlist(leh_depsess), kpc_dates)
+leh_depsess <- c(seq(ymd('2014-05-13'), ymd('2014-05-18'), by = '1 day'),
+                 seq(ymd('2014-06-13'), ymd('2014-06-18'), by = '1 day'),
+                 seq(ymd('2014-07-14'), ymd('2014-07-20'), by = '1 day'),
+                 seq(ymd('2015-05-26'), ymd('2015-06-04'), by = '1 day'),
+                 seq(ymd('2015-06-27'), ymd('2015-07-05'), by = '1 day'))
+leh_dates <- c(leh_depsess, kpc_dates)
 ## There was one MCB deployment in 2014 and two in 2015
-mcb_depsess <- list(seq(ymd('2014-06-01', tz = 'US/Hawaii'), 
-                        ymd('2014-06-07', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2015-06-17', tz = 'US/Hawaii'), 
-                        ymd('2015-07-06', tz = 'US/Hawaii'), 
-                        by = '1 day'),
-                    seq(ymd('2015-06-29', tz = 'US/Hawaii'), 
-                        ymd('2015-07-08', tz = 'US/Hawaii'), 
-                        by = '1 day'))
-mcb_dates <- c(unlist(mcb_depsess), kpc_dates)
+mcb_depsess <- c(seq(ymd('2014-06-01'), ymd('2014-06-07'), by = '1 day'),
+                 seq(ymd('2015-06-17'), ymd('2015-07-06'), by = '1 day'),
+                 seq(ymd('2015-06-29'), ymd('2015-07-08'), by = '1 day'))
+mcb_dates <- c(mcb_depsess, kpc_dates)
 
 # Generate energy landscapes
 ## Foreach colony...
@@ -127,31 +112,35 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
         col_loc = list(kpc_hi_aea, leh_hi_aea, mcb_hi_aea),
         col_dates = list(kpc_dates, leh_dates, mcb_dates)) %do% {
   ## Foreach date...        
-  foreach(d = col_dates) %do% {
+  foreach(d = kpc_dates) %do% {
     el <- energy_landscape(col_loc, el_radius, el_res, 
                            daily_wind(d, 'u'),
                            daily_wind(d, 'v'),
                            energy_mod, dur_mod, hi_land)
-    file_name <- function(loc, d, dir) {
-      paste(loc, format(d, '%Y%m%d'), dir, sep = '_')
-    }
     ## Foreach direction...
     foreach(dir = c('out', 'in', 'rt'),
-            dir_name = c('Out', 'In', 'Roundtrip')) %do% {
-      raster_path <- file.path('data/out/EnergyLandscapes2/',
-                               sprintf('%s/Rasters/%s/',
-                                       col_name, dir_name),
-                               sprintf('%s.tif', 
-                                       file_name(col_name, d, dir)))
+            dir_name = c('Out', 'In', 'Roundtrip')) %do% {      
+      file_name <- function(loc, d, dir) {
+        paste(loc, format(d, '%Y%m%d'), dir, sep = '_')
+      }
+      raster_path1 <- file.path('data/out/EnergyLandscapes2/',
+                                sprintf('%s/Rasters/%s/',
+                                        col_name, dir_name),
+                                sprintf('%s.tif', 
+                                        file_name(col_name, d, dir)))
+      raster_path2 <- file.path('data/out/EnergyLandscapes2/all',
+                                sprintf('%s.tif', 
+                                        file_name(col_name, d, dir)))
       figure_path <- file.path('data/out/EnergyLandscapes2/',
                                sprintf('%s/Figures/%s/',
                                        col_name, dir_name),
                                sprintf('%s.png', 
                                        file_name(col_name, d, dir)))
       ## Save raster
-      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path, 'GTiff')
+      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path1, 'GTiff')
+      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path2, 'GTiff')
       ## Save figure 
-      p <- plot_energy_landscape(el, col_loc, dir, hi_land)
+      p <- plot_energy_landscape(el, col_loc, sprintf('%s_cost', dir), hi_land)
       ggsave(figure_path, p, width = 5.5, height = 5, units = 'in')
     }
   }

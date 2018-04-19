@@ -1,48 +1,13 @@
-rescaled_kpc <- dir('data/out/EnergyLandscapes/KPC', pattern = '.tif', full.names = TRUE) %>%
-  lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
-
-raster_names_kpc <- dir('data/out/EnergyLandscapes/KPC', pattern = '.tif') %>%
-  sub('.tif', '', ., fixed = TRUE) %>%
-  paste('KPC', ., sep = '_')
-
-rescaled_leh <- dir('data/out/EnergyLandscapes/KPC', pattern = '.tif', full.names = TRUE) %>%
-  lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
-
-raster_names_leh <- dir('data/out/EnergyLandscapes/LEH', pattern = '.tif') %>%
-  sub('.tif', '', ., fixed = TRUE) %>%
-  paste('LEH', ., sep = '_')
-
-rescaled_mcb <- dir('data/out/EnergyLandscapes/MCB', pattern = '.tif', full.names = TRUE) %>%
-  lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
-
-raster_names_mcb <- dir('data/out/EnergyLandscapes/MCB', pattern = '.tif') %>%
-  sub('.tif', '', ., fixed = TRUE) %>%
-  paste('MCB', ., sep = '_')
-
 colonies <- data.frame(label = c('KPC', 'LEH', 'MCB'),
                        lat = c(22.2, 22.0, 21.5),
                        lon = c(-159.4, -160.1, -157.7)) 
 row.names(colonies) <- colonies$label
 
 plot_r <- function(r, origin, dir) {
+  # Re-project R to WGS84
+  projection(r) <- hi_aea_prj
+  r <- projectRaster(r, crs = wgs84_prj)
+  
   # Utility function for plotting a raster in ggplot
   fortify_raster <- function(r) {
     data.frame(i = seq(ncell(r))) %>%
@@ -65,8 +30,9 @@ plot_r <- function(r, origin, dir) {
   ggplot(fortify_raster(r),
          aes(x, y, fill = val)) +
     geom_raster() +
-    scale_fill_gradientn(colors = colorRamps::matlab.like(4),
-                         na.value = '#00000000') +
+    scale_fill_gradientn(colors = rev(colorRamps::matlab.like(4)),
+                         na.value = '#00000000',
+                         limits = 0:1) +
     annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
     geom_polygon(aes(long, lat, group = group),
                  fortify(hi_land2),
@@ -79,39 +45,17 @@ plot_r <- function(r, origin, dir) {
     theme_bw()
 }
 
-plot_r(rescaled[[1]], as.numeric(colonies[1,3:2]), 'in')
-plot_r(rescaled[[2]], as.numeric(colonies[1,3:2]), 'out')
-plot_r(rescaled[[3]], as.numeric(colonies[1,3:2]), 'rt')
-
-foreach(r = rescaled[55:57], n = raster_names[55:57]) %do% {
-  colony <- substr(n, 1, 3)
-  dir <- sub('.*_.*_(.*)', '\\1', n)
-  origin <- as.numeric(colonies[colony, 3:2])
-  p <- plot_r(r, origin, dir)
-  ggsave(sprintf('analysis/figures/EnergyLandscapes/%s.png', n),
-         height = 3,
-         width = 3.2,
-         units = 'in')
-}
-
-foreach(r = rescaled_leh[55:57], n = raster_names_leh[55:57]) %do% {
-  colony <- substr(n, 1, 3)
-  dir <- sub('.*_.*_(.*)', '\\1', n)
-  origin <- as.numeric(colonies[colony, 3:2])
-  p <- plot_r(r, origin, dir)
-  ggsave(sprintf('analysis/figures/EnergyLandscapes/%s.png', n),
-         height = 3,
-         width = 3.2,
-         units = 'in')
-}
-
-foreach(r = rescaled_mcb[55:57], n = raster_names_mcb[55:57]) %do% {
-  colony <- substr(n, 1, 3)
-  dir <- sub('.*_.*_(.*)', '\\1', n)
-  origin <- as.numeric(colonies[colony, 3:2])
-  p <- plot_r(r, origin, dir)
-  ggsave(sprintf('analysis/figures/EnergyLandscapes/%s.png', n),
-         height = 3,
-         width = 3.2,
-         units = 'in')
+# Plot each dir, each location for 2016-06-15
+foreach(col_loc = iterators::iter(colonies, by = 'row')) %do%{
+  foreach(dir = c('out', 'in', 'rt')) %do% {
+    p <- sprintf('data/out/EnergyLandscapes2/all/%s_20160615_%s.tif', 
+                 col_loc$label, dir) %>%
+      raster %>%
+      plot_r(as.numeric(col_loc[1,3:2]), dir)
+    ggsave(sprintf('analysis/figures/EnergyLandscapes/%s_20160615_%s.png', 
+                   col_loc$label, dir),
+           height = 3,
+           width = 3.2,
+           units = 'in')
+  }
 }

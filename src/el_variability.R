@@ -1,44 +1,39 @@
 # Energy landscape variability across colonies
-kpc_rescaled <- dir('data/out/EnergyLandscapes/KPC', pattern = '_rt.tif', full.names = TRUE) %>%
+kpc_rt <- dir('data/out/EnergyLandscapes2/all/', 
+              pattern = 'KPC_.*_rt.tif', 
+              full.names = TRUE) %>%
   lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
-leh_rescaled<- dir('data/out/EnergyLandscapes/LEH', pattern = '_rt.tif', full.names = TRUE) %>%
+  lapply(projectRaster, crs = wgs84_prj)
+dates <- dir('data/out/EnergyLandscapes2/all/', 
+             pattern = 'KPC_.*_rt.tif', 
+             full.names = TRUE) %>% 
+  sub('.*KPC_(.*)_rt.tif', '\\1', .)
+leh_rt <- sprintf('data/out/EnergyLandscapes2/all/LEH_%s_rt.tif', 
+                  dates) %>%
   lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
-mcb_rescaled<- dir('data/out/EnergyLandscapes/MCB', pattern = '_rt.tif', full.names = TRUE) %>%
+  lapply(projectRaster, crs = wgs84_prj)
+mcb_rt <- sprintf('data/out/EnergyLandscapes2/all/MCB_%s_rt.tif', 
+                  dates) %>%
   lapply(raster, crs = hi_aea_prj) %>%
-  lapply(function(r) projectRaster(r, crs = wgs84_prj)) %>%
-  lapply(function(r) {
-    r_min = cellStats(r, "min")
-    r_max = cellStats(r, "max")
-    (r - r_min) / (r_max - r_min)
-  })
+  lapply(projectRaster, crs = wgs84_prj)
 
-kpc_stack <- stack(kpc_rescaled)
-leh_stack <- stack(leh_rescaled)
-mcb_stack <- stack(mcb_rescaled)
+kpc_stack <- stack(kpc_rt)
+leh_stack <- stack(leh_rt)
+mcb_stack <- stack(mcb_rt)
 kpc_mean <- calc(kpc_stack, fun = mean)
 leh_mean <- calc(leh_stack, fun = mean)
 mcb_mean <- calc(mcb_stack, fun = mean)
 range(cellStats(kpc_mean, range), 
       cellStats(leh_mean, range), 
       cellStats(mcb_mean, range))
+# [1] 0.04217044 0.89535627
 kpc_sd <- calc(kpc_stack, fun = sd)
 leh_sd <- calc(leh_stack, fun = sd)
 mcb_sd <- calc(mcb_stack, fun = sd)
 range(cellStats(kpc_sd, range), 
       cellStats(leh_sd, range), 
       cellStats(mcb_sd, range))
+# [1] 0.07811175 0.27136536
 
 plot_r <- function(r, origin, stat) {
   # Utility function for plotting a raster in ggplot
@@ -54,20 +49,19 @@ plot_r <- function(r, origin, stat) {
     do.call(expression, lapply(breaks_char, function(b) bquote(.(b)*degree)))
   }
   
-  fill_lab <- bquote(.(stat)(italic(E[rt])))
-  fill_lim <- if(stat == 'sd') {
-    c(0.07, 0.28)
-  } else {
-    c(0.1, 1)
-  }
-  
   hi_land2 <- hi_land %>%
     spTransform(wgs84_prj) %>%
     crop(r)
   
+  fill_lab <- bquote(.(stat)(italic(E[rt])))
+  fill_lim <- if(stat == 'mean') c(0, 1) else c(0.07, 0.28)
+  
   ggplot(fortify_raster(r),
          aes(x, y, fill = val)) +
     geom_raster() +
+    scale_fill_gradientn(colors = rev(colorRamps::matlab.like(4)),
+                         na.value = '#00000000',
+                         limits = fill_lim) +
     annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
     geom_polygon(aes(long, lat, group = group),
                  fortify(hi_land2),
@@ -75,14 +69,15 @@ plot_r <- function(r, origin, stat) {
     coord_fixed() +
     scale_x_continuous(labels = degree_labels,
                        breaks = function(lim) seq(ceiling(lim[1]), floor(lim[2]), by = 1)) +
-    scale_y_continuous(labels = degree_labels,
-                       breaks = function(lim) seq(ceiling(lim[1]), floor(lim[2]), by = 1)) +
+    scale_y_continuous(labels = degree_labels) +
     labs(x = NULL, y = NULL, fill = fill_lab) +
-    theme_bw() +
-    scale_fill_gradientn(colors = colorRamps::matlab.like(4),
-                         na.value = '#00000000',
-                         limits = fill_lim)
+    theme_bw()
 }
+
+colonies <- data.frame(label = c('KPC', 'LEH', 'MCB'),
+                       lat = c(22.2, 22.0, 21.5),
+                       lon = c(-159.4, -160.1, -157.7)) 
+row.names(colonies) <- colonies$label
 
 p_kpc_mean <- plot_r(kpc_mean, as.numeric(colonies['KPC', 3:2]), 'mean')
 p_leh_mean <- plot_r(leh_mean, as.numeric(colonies['LEH', 3:2]), 'mean')
