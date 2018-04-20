@@ -1,0 +1,103 @@
+Thu Apr 19 18:23:47 PDT 2018
+MaxEnt version 3.4.1
+Reading file kpc_background.csv
+readGrid: max memory 536870912, total allocated 67108864, free 38293336, used 28815528, increment 28815528
+Reading samples from rfbo_accessible.csv
+Read samples: max memory 536870912, total allocated 67108864, free 57449176, used 9659688, increment -19155840
+Adding samples to background in feature space
+Command line used:  environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/kpc/ert outputformat=raw togglelayerselected=LocDate togglelayerselected=D2C togglelayerselected=UD redoifexists autorun responsecurves
+Command line to repeat: java density.MaxEnt nowarnings noprefixes responsecurves outputformat=raw outputdirectory=analysis/maxent/kpc/ert samplesfile=data/out/Presences/rfbo_accessible.csv environmentallayers=data/out/Presences/kpc_background.csv noaskoverwrite autorun -N D2C -N LocDate -N UD
+Species: RFBO
+Layers: Ert anom bathy sst
+Layertypes: Continuous Continuous Continuous Continuous
+responsecurves: true
+outputformat: raw
+outputdirectory: analysis/maxent/kpc/ert
+samplesfile: data/out/Presences/rfbo_accessible.csv
+environmentallayers: data/out/Presences/kpc_background.csv
+askoverwrite: false
+autorun: true
+
+getSamples: max memory 536870912, total allocated 67108864, free 22995472, used 44113392, increment 34453704
+Time since start: 1.01
+Making features
+makeFeatures: max memory 536870912, total allocated 67108864, free 55234880, used 11873984, increment -32239408
+RFBO: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+Time since start: 2.331
+3122 samples
+Density: max memory 536870912, total allocated 67108864, free 45449024, used 21659840, increment 9785856
+linearPredictor: max memory 536870912, total allocated 67108864, free 45346168, used 21762696, increment 102856
+FeaturedSpace: max memory 536870912, total allocated 67108864, free 45346168, used 21762696, increment 0
+Sequential: max memory 536870912, total allocated 67108864, free 44821880, used 22286984, increment 524288
+Initial loss: 9.46148811969999
+Time since start: 10.795
+500: time = 8.292000 loss = 9.227676
+Resulting gain: 0.23381244823082703
+Time since start: 12.066
+Projecting...
+Writing file analysis/maxent/kpc/ert/RFBO.csv
+RFBO response curves
+Response curve: only Ert
+Making features
+makeFeatures: max memory 536870912, total allocated 90177536, free 44055936, used 46121600, increment 23834616
+RFBO Ert: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+Time since start: 13.093
+3122 samples
+Density: max memory 536870912, total allocated 90177536, free 39683360, used 50494176, increment 4372576
+linearPredictor: max memory 536870912, total allocated 90177536, free 39580504, used 50597032, increment 102856
+FeaturedSpace: max memory 536870912, total allocated 90177536, free 39580504, used 50597032, increment 0
+Sequential: max memory 536870912, total allocated 90177536, free 39580504, used 50597032, increment 0
+Initial loss: 9.46148811969999
+Time since start: 15.85
+180: time = 2.739000 loss = 9.410589
+Resulting gain: 0.05089932797848107
+RFBO response curves
+Response curve: only anom
+Making features
+makeFeatures: max memory 536870912, total allocated 109051904, free 39292760, used 69759144, increment 19162112
+RFBO anom: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+3122 samples
+Density: max memory 536870912, total allocated 109051904, free 37797344, used 71254560, increment 1495416
+linearPredictor: max memory 536870912, total allocated 109051904, free 37797344, used 71254560, increment 0
+FeaturedSpace: max memory 536870912, total allocated 109051904, free 37797344, used 71254560, increment 0
+Sequential: max memory 536870912, total allocated 109051904, free 37797344, used 71254560, increment 0
+Initial loss: 9.46148811969999
+Time since start: 17.065
+120: time = 0.940000 loss = 9.445824
+Resulting gain: 0.01566363310437424
+RFBO response curves
+Response curve: only bathy
+Making features
+makeFeatures: max memory 536870912, total allocated 109051904, free 63331912, used 45719992, increment -25534568
+RFBO bathy: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+3122 samples
+Density: max memory 536870912, total allocated 109051904, free 61261592, used 47790312, increment 2070320
+linearPredictor: max memory 536870912, total allocated 109051904, free 60748296, used 48303608, increment 513296
+FeaturedSpace: max memory 536870912, total allocated 109051904, free 60748296, used 48303608, increment 0
+Sequential: max memory 536870912, total allocated 109051904, free 60748296, used 48303608, increment 0
+Initial loss: 9.46148811969999
+Time since start: 21.53
+380: time = 4.198000 loss = 9.359830
+Resulting gain: 0.10165791553882464
+RFBO response curves
+Response curve: only sst
+Making features
+makeFeatures: max memory 536870912, total allocated 109051904, free 54336504, used 54715400, increment 6411792
+RFBO sst: 
+Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+3122 samples
+Density: max memory 536870912, total allocated 109051904, free 52754704, used 56297200, increment 1581800
+linearPredictor: max memory 536870912, total allocated 109051904, free 52754704, used 56297200, increment 0
+FeaturedSpace: max memory 536870912, total allocated 109051904, free 52754704, used 56297200, increment 0
+Sequential: max memory 536870912, total allocated 109051904, free 52754704, used 56297200, increment 0
+Initial loss: 9.46148811969999
+Time since start: 23.053
+200: time = 1.285000 loss = 9.432487
+Resulting gain: 0.029000955811227414
+RFBO response curves
+Time since start: 24.352
+Ending
