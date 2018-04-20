@@ -146,10 +146,12 @@ leh_env <- foreach(depsess = leh_depsess) %do% {
     crop(depsess_extent)
   writeRaster(sst_r, 
               sprintf('data/out/Environment/LEH/%s_sst.tif', depsess$label), 
-              'GTiff')
+              'GTiff',
+              overwrite = TRUE)
   writeRaster(anom_r, 
               sprintf('data/out/Environment/LEH/%s_anom.tif', depsess$label), 
-              'GTiff')
+              'GTiff',
+              overwrite = TRUE)
 }
 ### MCB
 mcb_env <- foreach(depsess = mcb_depsess) %do% {
@@ -191,26 +193,46 @@ mcb_env <- foreach(depsess = mcb_depsess) %do% {
     crop(depsess_extent)
   writeRaster(sst_r, 
               sprintf('data/out/Environment/MCB/%s_sst.tif', depsess$label), 
-              'GTiff')
+              'GTiff',
+              overwrite = TRUE)
   writeRaster(anom_r, 
               sprintf('data/out/Environment/MCB/%s_anom.tif', depsess$label), 
-              'GTiff')
+              'GTiff',
+              overwrite = TRUE)
 }
 
 # Aggregate Energy Landscapes
 leh_el <- foreach(depsess = leh_depsess) %do% {
-  depsess_extent <- kpc_forage
-  col_loc <- kpc_col
+  depsess_extent <- leh_forage
+  col_loc <- leh_col
   posix_depsess <- as.POSIXct(depsess$dates, 
                               origin = ymd('1970-01-01', tz = 'UTC'), 
                               tz = 'UTC')
   
-  ert_stack <- sprintf('data/out/EnergyLandscapes2/all/KPC_%s_rt.tif', 
+  ert_stack <- sprintf('data/out/EnergyLandscapes2/all/LEH_%s_rt.tif', 
                        format(posix_depsess, '%Y%m%d')) %>% 
     stack
   projection(ert_stack) <- hi_aea_prj
   mean_ert <- mean(ert_stack)
   projectRaster(mean_ert, crs = wgs84_prj) %>% 
     writeRaster(sprintf('data/out/Environment/LEH/%s_ert.tif', depsess$label), 
-                'GTiff')
+                'GTiff',
+                overwrite = TRUE)
+}
+mcb_el <- foreach(depsess = mcb_depsess) %do% {
+  depsess_extent <- mcb_forage
+  col_loc <- mcb_col
+  posix_depsess <- as.POSIXct(depsess$dates, 
+                              origin = ymd('1970-01-01', tz = 'UTC'), 
+                              tz = 'UTC')
+  
+  ert_stack <- sprintf('data/out/EnergyLandscapes2/all/MCB_%s_rt.tif', 
+                       format(posix_depsess, '%Y%m%d')) %>% 
+    stack
+  projection(ert_stack) <- hi_aea_prj
+  mean_ert <- mean(ert_stack)
+  projectRaster(mean_ert, crs = wgs84_prj) %>% 
+    writeRaster(sprintf('data/out/Environment/MCB/%s_ert.tif', depsess$label), 
+                'GTiff',
+                overwrite = TRUE)
 }
