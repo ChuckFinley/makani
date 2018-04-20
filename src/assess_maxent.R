@@ -22,9 +22,6 @@ mcb_forage <- SpatialPoints(mcb_col,
   rgeos::gBuffer(width = 250e3) %>%
   spTransform(wgs84_prj)
 
-## Land
-hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land')
-
 # Presence records
 ## Tracks
 ### Read from CSV
@@ -40,10 +37,14 @@ leh_mcb_sample <- leh_mcb_tracks %>%
   ungroup
 leh_mcb_sample %>%
   group_by(SubColCode, Year, DepSess) %>%
-  do(write = readr::write_csv(., sprintf('data/out/Presences/%s/%i_%i.csv',
-                                         first(.$SubColCode),
-                                         first(.$Year),
-                                         first(.$DepSess))))
+  do(write = readr::write_csv(transmute(.,
+                                        Species = 'RFBO',
+                                        Longitude,
+                                        Latitude), 
+                              sprintf('data/out/Presences/%s/%i_%i.csv',
+                                      first(.$SubColCode),
+                                      first(.$Year),
+                                      first(.$DepSess))))
 
 # Aggregate environmental variables over deployment sessions
 ## SST & SST anomaly ncdf files
@@ -105,10 +106,27 @@ mcb_depsess <- list(list(label = '2014_1',
                                      ymd('2015-07-09', tz = 'UTC'), 
                                      by = '1 day')))
 
+## Clear out existing files
+clear_leh <- foreach(depsess = leh_depsess) %do% {
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
+  dir(depsess_folder, full.names = TRUE) %>%
+    sapply(file.remove)
+}
+clear_mcb <- foreach(depsess = leh_depsess) %do% {
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
+  dir(depsess_folder, full.names = TRUE) %>%
+    sapply(file.remove)
+}
+
 ## Create environmental aggregates
 ### Lehua
+leh_template <- raster('data/out/EnergyLandscapes2/all/LEH_20140513_in.tif',
+                       crs = hi_aea_prj) %>%
+  projectRaster(crs = wgs84_prj)
+res(leh_template) = 0.25
 leh_env <- foreach(depsess = leh_depsess) %do% {
   depsess_extent <- leh_forage
+  template <- leh_template
   col_loc <- leh_col
   if(year(depsess$dates[1]) == 2014) {
     time_sst <- time_sst_2014
@@ -136,24 +154,31 @@ leh_env <- foreach(depsess = leh_depsess) %do% {
     raster(xmn = x_min - 360, xmx = x_max - 360, 
            ymn = y_min, ymx = y_max, 
            crs = wgs84_prj) %>%
-    crop(depsess_extent)
+    resample(template) %>%
+    crop(template)
   anom_r <- anom_arr[,,seq(sst_t_min, sst_t_max)] %>%
     apply(c(1,2), mean, na.rm = TRUE) %>%
     t %>% apply(2, rev) %>%
     raster(xmn = x_min - 360, xmx = x_max - 360, 
            ymn = y_min, ymx = y_max, 
            crs = wgs84_prj) %>%
-    crop(depsess_extent)
+    resample(template) %>%
+    crop(template)
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
   writeRaster(sst_r, 
-              sprintf('data/out/Environment/LEH/%s_sst.tif', depsess$label), 
-              'GTiff',
+              sprintf('%s/sst', depsess_folder),
+              'ascii',
               overwrite = TRUE)
   writeRaster(anom_r, 
-              sprintf('data/out/Environment/LEH/%s_anom.tif', depsess$label), 
-              'GTiff',
+              sprintf('%s/anom', depsess_folder), 
+              'ascii',
               overwrite = TRUE)
 }
 ### MCB
+mcb_template <- raster('data/out/EnergyLandscapes2/all/MCB_20140601_in.tif',
+                       crs = hi_aea_prj) %>%
+  projectRaster(crs = wgs84_prj)
+res(mcb_template) = 0.25
 mcb_env <- foreach(depsess = mcb_depsess) %do% {
   depsess_extent <- mcb_forage
   col_loc <- mcb_col
@@ -183,26 +208,31 @@ mcb_env <- foreach(depsess = mcb_depsess) %do% {
     raster(xmn = x_min - 360, xmx = x_max - 360, 
            ymn = y_min, ymx = y_max, 
            crs = wgs84_prj) %>%
-    crop(depsess_extent)
+    resample(template) %>%
+    crop(template)
   anom_r <- anom_arr[,,seq(sst_t_min, sst_t_max)] %>%
     apply(c(1,2), mean, na.rm = TRUE) %>%
     t %>% apply(2, rev) %>%
     raster(xmn = x_min - 360, xmx = x_max - 360, 
            ymn = y_min, ymx = y_max, 
            crs = wgs84_prj) %>%
-    crop(depsess_extent)
+    resample(template) %>%
+    crop(template)
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
   writeRaster(sst_r, 
-              sprintf('data/out/Environment/MCB/%s_sst.tif', depsess$label), 
-              'GTiff',
+              sprintf('%s/sst', depsess_folder), 
+              'ascii',
               overwrite = TRUE)
   writeRaster(anom_r, 
-              sprintf('data/out/Environment/MCB/%s_anom.tif', depsess$label), 
-              'GTiff',
+              sprintf('%s/anom', depsess_folder), 
+              'ascii',
               overwrite = TRUE)
 }
 
 # Aggregate Energy Landscapes
 leh_el <- foreach(depsess = leh_depsess) %do% {
+  template <- leh_template
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
   depsess_extent <- leh_forage
   col_loc <- leh_col
   posix_depsess <- as.POSIXct(depsess$dates, 
@@ -215,11 +245,15 @@ leh_el <- foreach(depsess = leh_depsess) %do% {
   projection(ert_stack) <- hi_aea_prj
   mean_ert <- mean(ert_stack)
   projectRaster(mean_ert, crs = wgs84_prj) %>% 
-    writeRaster(sprintf('data/out/Environment/LEH/%s_ert.tif', depsess$label), 
-                'GTiff',
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/Ert', depsess_folder), 
+                'ascii',
                 overwrite = TRUE)
 }
 mcb_el <- foreach(depsess = mcb_depsess) %do% {
+  template <- mcb_template
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
   depsess_extent <- mcb_forage
   col_loc <- mcb_col
   posix_depsess <- as.POSIXct(depsess$dates, 
@@ -232,7 +266,106 @@ mcb_el <- foreach(depsess = mcb_depsess) %do% {
   projection(ert_stack) <- hi_aea_prj
   mean_ert <- mean(ert_stack)
   projectRaster(mean_ert, crs = wgs84_prj) %>% 
-    writeRaster(sprintf('data/out/Environment/MCB/%s_ert.tif', depsess$label), 
-                'GTiff',
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/Ert', depsess_folder),
+                'ascii',
                 overwrite = TRUE)
 }
+
+# D2C rasters
+leh_d2c <- foreach(depsess = leh_depsess) %do% {
+  template <- leh_template
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
+  leh_col %>%
+    SpatialPoints(proj4string = wgs84_prj) %>%
+    distanceFromPoints(template, .) %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/D2C', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+mcb_d2c <- foreach(depsess = mcb_depsess) %do% {
+  template <- mcb_template
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
+  mcb_col %>%
+    SpatialPoints(proj4string = wgs84_prj) %>%
+    distanceFromPoints(template, .) %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/D2C', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+
+# Bathymetry rasters
+leh_bathy <- foreach(depsess = leh_depsess) %do% {
+  template <- leh_template
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
+  raster('data/bathy/etopo1.tif') %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/bathy', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+mcb_bathy <- foreach(depsess = mcb_depsess) %do% {
+  template <- mcb_template
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
+  raster('data/bathy/etopo1.tif') %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/bathy', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+
+# CRW UD rasters
+leh_crw <- foreach(depsess = leh_depsess) %do% {
+  template <- leh_template
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
+  raster('data/out/CyberBirds/LEH_CRW_UD.tif') %>%
+    projectRaster(crs = wgs84_prj) %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/UD', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+mcb_crw <- foreach(depsess = mcb_depsess) %do% {
+  template <- mcb_template
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
+  raster('data/out/CyberBirds/MCB_CRW_UD.tif') %>%
+    projectRaster(crs = wgs84_prj) %>%
+    resample(template) %>%
+    crop(template) %>%
+    writeRaster(sprintf('%s/UD', depsess_folder),
+                'ascii',
+                overwrite = TRUE)
+}
+
+# Align rasters
+align_leh <- foreach(depsess = leh_depsess) %do% {
+  template <- leh_template
+  depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
+  dir(depsess_folder, pattern = 'asc', full.names = TRUE) %>%
+    lapply(function(r) {
+      raster(r) %>%
+        resample(template) %>%
+        crop(template) %>%
+        writeRaster(r, 'ascii', overwrite = TRUE)
+    })
+}
+align_mcb <- foreach(depsess = mcb_depsess) %do% {
+  template <- mcb_template
+  depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
+  dir(depsess_folder, pattern = 'asc', full.names = TRUE) %>%
+    lapply(function(r) {
+      raster(r) %>%
+        resample(template) %>%
+        crop(template) %>%
+        writeRaster(r, 'ascii', overwrite = TRUE)
+    })
+}
+
