@@ -1,1 +1,0 @@
-java -mx910m -cp "/Users/maxczap/Downloads/maxent/maxent.jar:/Users/maxczap/Downloads/maxent/maxent.jar" density.Explain -l /Users/maxczap/Projects/makani/analysis/maxent/kpc/el/RFBO.lambdas /Users/maxczap/Projects/makani/analysis/maxent/kpc/el/RFBO.asc /Users/maxczap/Projects/makani/data/out/Presences/kpc_background10.csv
