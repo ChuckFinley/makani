@@ -8,19 +8,17 @@ source('src/energy_landscape.R')
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
 energy_mod <- function(a, m) {
-  predict(oam, 
-          newdata = data.frame(WindAngle = a,
-                               WindSpd = m,
-                               DeployID = 1145),
-          exclude = 's(DeployID)',
-          type = 'response')
-}
-dur_mod <- function(a, m, d) {
-  t <- a * cos(a)
+  mean_spd <- 11.7 # m/s
   spd <- predict(SgTCModel, 
                  re.form = NA,
-                 newdata = data.frame(Tailwind = t))
-  d / spd
+                 newdata = data.frame(Tailwind = m * cos(a)))
+  odba <- predict(oam, 
+                  newdata = data.frame(WindAngle = a,
+                                       WindSpd = m,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)',
+                  type = 'response')
+  odba * mean_spd / spd
 }
 
 # Spatial data
@@ -116,7 +114,7 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
     el <- energy_landscape(col_loc, el_radius, el_res, 
                            daily_wind(d, 'u'),
                            daily_wind(d, 'v'),
-                           energy_mod, dur_mod, hi_land)
+                           energy_mod, hi_land)
     ## Foreach direction...
     foreach(dir = c('out', 'in', 'rt'),
             dir_name = c('Out', 'In', 'Roundtrip')) %do% {      
@@ -137,8 +135,10 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
                                sprintf('%s.png', 
                                        file_name(col_name, d, dir)))
       ## Save raster
-      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path1, 'GTiff')
-      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path2, 'GTiff')
+      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path1, 
+                  'GTiff', overwrite = TRUE)
+      writeRaster(el[[paste(dir, 'cost', sep = '_')]], raster_path2, 
+                  'GTiff', overwrite = TRUE)
       ## Save figure 
       p <- plot_energy_landscape(el, col_loc, sprintf('%s_cost', dir), hi_land)
       ggsave(figure_path, p, width = 5.5, height = 5, units = 'in')
