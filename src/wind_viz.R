@@ -67,4 +67,26 @@ plot_wind <- function(d) {
                  fortify(spTransform(hi_land, hi_aea_prj)), inherit.aes = FALSE)
 }
 
+kpc_dates <- seq(ymd('2016-05-28'), ymd('2016-07-17'), by = '1 day')
+u <- lapply(kpc_dates, daily_wind, 'u')
+v <- lapply(kpc_dates, daily_wind, 'v')
+u_mean <- mean(stack(u))
+v_mean <- mean(stack(v))
+template <- u_mean
+res(template) <- 40e3
+u2 <- resample(u_mean, template)
+v2 <- resample(v_mean, template)
+fortify_raster <- function(r) {
+  data.frame(i = seq(ncell(r))) %>%
+    mutate(x = xFromCell(r, i),
+           y = yFromCell(r, i),
+           val = getValues(r))
+}
+uv <- left_join(fortify_raster(u2), fortify_raster(v2), by = 'i') %>% 
+  transmute(i, x = x.x, y = y.x, u = val.x, v = val.y)
 
+ggplot(uv, aes(x, y)) + 
+  geom_segment(aes(xend = x + 5e3*u, yend = y + 5e3*v), 
+               arrow = arrow(length = unit(0.1,"cm"))) + 
+  geom_polygon(aes(long, lat, group = group), 
+               fortify(spTransform(hi_land, hi_aea_prj)), inherit.aes = FALSE)
