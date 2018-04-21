@@ -43,7 +43,7 @@ test_barr <- SpatialPolygons(list(polys))
 ## Run test
 test_el <- energy_landscape(origin, radius, res, wind_u, wind_v,
                             energy_mod, dur_mod, test_barr)
-print(plot_energy_landscape(test_el, origin))
+print(plot_energy_landscape(test_el, origin, barriers = test_barr))
 
 # Real data test
 ## Movement models
@@ -83,32 +83,32 @@ radius <- 250e3
 res <- 11.4 * 20 * 60
 
 ## Wind data
-wind_path <- 'data/wind/WRF_HI/WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc'
-wind_nc <- RNetCDF::open.nc(wind_path)
-time_dim <- 'time'   # hours since 2010-05-14 00:00:00.000 UTC
-lat_dim <- 'lat'     # degrees north
-lon_dim <- 'lon'     # degrees east
-u_var <- 'Uwind'
-v_var <- 'Vwind'
-time_wind_origin <- ymd('2010-05-14', tz = 'UTC')
-time_wind <- hours(RNetCDF::var.get.nc(wind_nc, time_dim)) + time_wind_origin
-lat_wind <- RNetCDF::var.get.nc(wind_nc, lat_dim)
-lon_wind <- RNetCDF::var.get.nc(wind_nc, lon_dim)
-u_wind <- RNetCDF::var.get.nc(wind_nc, u_var)
-v_wind <- RNetCDF::var.get.nc(wind_nc, v_var)
 ## Each day's wind is the mean wind between the hours of 7am and 7pm HST
 ## This is when the birds are most active
 daily_wind <- function(t, uv) {
-  if(!any(between(t, min(time_wind), max(time_wind))))
-    stop('t out of bounds')
+  wind_path <- 'data/wind/WRF_HI/2016_WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc'
   if(!(uv %in% c('u', 'v')))
     stop('uv must be "u" or "v"')
+  
+  wind_nc <- RNetCDF::open.nc(wind_path)
+  time_dim <- 'time'   # hours since 2010-05-14 00:00:00.000 UTC
+  lat_dim <- 'lat'     # degrees north
+  lon_dim <- 'lon'     # degrees east
+  u_var <- 'Uwind'
+  v_var <- 'Vwind'
+  time_wind_origin <- ymd('2010-05-14', tz = 'UTC')
+  time_wind <- hours(RNetCDF::var.get.nc(wind_nc, time_dim)) + time_wind_origin
+  lat_wind <- RNetCDF::var.get.nc(wind_nc, lat_dim)
+  lon_wind <- RNetCDF::var.get.nc(wind_nc, lon_dim)
+  u_wind <- RNetCDF::var.get.nc(wind_nc, u_var)
+  v_wind <- RNetCDF::var.get.nc(wind_nc, v_var)
   wind_arr <- if(uv == 'u') u_wind else v_wind 
+  
   wind_times <- sprintf('%s %i', as.Date(t, tz = 'US/Hawaii'), 7:19) %>% 
     ymd_h(tz = 'US/Hawaii')
   ks <- sapply(wind_times, function(t) which.min(abs(t - time_wind)))
   wgs84_wind <- apply(wind_arr[,,ks], c(1,2), mean, na.rm = TRUE) %>%
-    t %>%
+    t %>% apply(2, rev) %>%
     raster(xmn = min(lon_wind),
            xmx = max(lon_wind),
            ymn = min(lat_wind),
@@ -128,7 +128,7 @@ el_0528 <- energy_landscape(kpc_col, radius, res,
                             daily_wind(ymd('2016-05-28', tz = 'US/Hawaii'), 'u'),
                             daily_wind(ymd('2016-05-28', tz = 'US/Hawaii'), 'v'),
                             energy_mod, dur_mod, hi_land);beepr::beep();
-plot_energy_landscape(el_0528, kpc_col, 'rt_cost')
+plot_energy_landscape(el_0528, kpc_col, 'rt_cost', hi_land)
 
 ## try lehua
 el_leh_0615 <- energy_landscape(leh_col, radius, res, 

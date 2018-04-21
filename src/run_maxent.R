@@ -1,3 +1,13 @@
+# Fit models
+## Suitability only
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/envonly togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C togglelayerselected=UD redoifexists autorun responsecurves')
+## D2C
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/d2c togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=UD redoifexists autorun responsecurves')
+## UD
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/crw togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C redoifexists autorun responsecurves')
+## Ert
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/ert togglelayerselected=LocDate togglelayerselected=D2C togglelayerselected=UD redoifexists autorun responsecurves')
+
 # To project a model to a new environment
 project_model <- function(model, loc, depsess) {
   project_cmd <- 'java -cp tools/maxent/maxent.jar density.Project'

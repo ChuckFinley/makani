@@ -1,3 +1,5 @@
+library(foreach)
+
 colonies <- data.frame(label = c('KPC', 'LEH', 'MCB'),
                        lat = c(22.2, 22.0, 21.5),
                        lon = c(-159.4, -160.1, -157.7)) 
@@ -48,7 +50,7 @@ plot_r <- function(r, origin, dir) {
 # Plot each dir, each location for 2016-06-15
 foreach(col_loc = iterators::iter(colonies, by = 'row')) %do%{
   foreach(dir = c('out', 'in', 'rt')) %do% {
-    p <- sprintf('data/out/EnergyLandscapes2/all/%s_20160615_%s.tif', 
+    p <- sprintf('data/out/EnergyLandscapes/all/%s_20160615_%s.tif', 
                  col_loc$label, dir) %>%
       raster %>%
       plot_r(as.numeric(col_loc[1,3:2]), dir)

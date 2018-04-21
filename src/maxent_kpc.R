@@ -114,7 +114,7 @@ rfbo_env <- rfbo_sample %>%
 extract_el <- function(x, y, t, col) {
   if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
     stop('invalid colony')
-  raster_path <- sprintf('data/out/EnergyLandscapes2/all/%s_%s_rt.tif',
+  raster_path <- sprintf('data/out/EnergyLandscapes/all/%s_%s_rt.tif',
                          col,
                          format(t, '%Y%m%d'))
   if(!all(file.exists(raster_path)))
