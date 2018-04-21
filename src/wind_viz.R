@@ -43,24 +43,28 @@ daily_wind <- function(t, uv) {
   res(hi_aea_template) <- 6e3
   projectRaster(wgs84_wind, hi_aea_template)
 }
-fortify_raster <- function(r) {
-  data.frame(i = seq(ncell(r))) %>%
-    mutate(x = xFromCell(r, i),
-           y = yFromCell(r, i),
-           val = getValues(r))
+
+plot_wind <- function(d) {
+  u <- daily_wind(ymd('2016-06-07'), 'u')
+  v <- daily_wind(ymd('2016-06-07'), 'v')
+  template <- u
+  res(template) <- 40e3
+  u2 <- resample(u, template)
+  v2 <- resample(v, template)
+  fortify_raster <- function(r) {
+    data.frame(i = seq(ncell(r))) %>%
+      mutate(x = xFromCell(r, i),
+             y = yFromCell(r, i),
+             val = getValues(r))
+  }
+  uv <- left_join(fortify_raster(u2), fortify_raster(v2), by = 'i') %>% 
+    transmute(i, x = x.x, y = y.x, u = val.x, v = val.y)
+  
+  ggplot(uv, aes(x, y)) + 
+    geom_segment(aes(xend = x + 5e3*u, yend = y + 5e3*v), 
+                 arrow = arrow(length = unit(0.1,"cm"))) + 
+    geom_polygon(aes(long, lat, group = group), 
+                 fortify(spTransform(hi_land, hi_aea_prj)), inherit.aes = FALSE)
 }
 
-u <- daily_wind(ymd('2016-06-07'), 'u')
-v <- daily_wind(ymd('2016-06-07'), 'v')
-template <- u
-res(template) <- 40e3
-u2 <- resample(u, template)
-v2 <- resample(v, template)
-foo <- left_join(fortify_raster(u2), fortify_raster(v2), by = 'i') %>% 
-  transmute(i, x = x.x, y = y.x, u = val.x, v = val.y)
 
-p <- ggplot(foo, aes(x, y)) + 
-  geom_segment(aes(xend = x + 5e3*u, yend = y + 5e3*v), 
-               arrow = arrow(length = unit(0.1,"cm"))) + 
-  geom_polygon(aes(long, lat, group = group), 
-               fortify(spTransform(hi_land, hi_aea_prj)), inherit.aes = FALSE)
