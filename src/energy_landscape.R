@@ -77,7 +77,7 @@ connect_neighbors <- function(grid_coords) {
 }
 
 # Annotate connections with wind conditions and trip predictions
-annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
+annotate_wind <- function(connections, u, v, e_mod, barriers) {
   extract_line <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
     npoints <- len / xres(r) + 1
@@ -126,69 +126,44 @@ annotate_wind <- function(connections, u, v, e_mod, t_mod, barriers) {
   }
   
   connections %>%
-    left_join(blocked_segs, by = c('id', 'id2')) %>%
-    replace_na(list(blocked = FALSE)) %>%
+    anti_join(blocked_segs, by = c('id', 'id2')) %>%
     mutate(mean_u = extract_line(x, y, x2, y2, u),
            mean_v = extract_line(x, y, x2, y2, v),
            a_out = vector_angle(x2 - x, y2 - y, mean_u, mean_v),
            a_in = vector_angle(x - x2, y - y2, mean_u, mean_v),
            m = sqrt(mean_u^2 + mean_v^2),
-           e_out = ifelse(blocked, 0, e_mod(a_out, m)),
-           e_in = ifelse(blocked, 0, e_mod(a_in, m)),
-           t_out = ifelse(blocked, 0, t_mod(a_out, m, dist)),
-           t_in = ifelse(blocked, 0, t_mod(a_out, m, dist)))
+           e_out = e_mod(a_out, m),
+           e_in = e_mod(a_in, m))
 }
 
 # Calculate trip costs based on movement model
 trip_costs <- function(grid, conns, origin) {
   origin_id <- filter(grid, x == origin[1], y == origin[2])$id
   
-  e_out_graph <- transmute(conns, id, id2,
+  e_out_cost_mat <- transmute(conns, id, id2,
                            weight = e_out) %>%
-    filter(weight > 0) %>%
     igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid)
-  e_out_paths <- igraph::all_shortest_paths(e_out_graph,
-                                            origin_id,
-                                            mode = 'out')
-  e_out_costs <- foreach(path = e_out_paths$res, .combine = rbind) %do% {
-    path_char <- as.character(path)
-    steps <- data.frame(from = path_char, 
-                        to = lead(path_char)) %>%
-      head(-1) %>%
-      mutate(e_out = conns_df[paste(from, to), 'e_out'],
-             t_out = conns_df[paste(from, to), 't_out'])
-    summarize(steps,
-              id = last(path_char), 
-              out_cost = sum(e_out * t_out) / sum(t_out),
-              t_out = sum(t_out))
-  }
+                                  vertices = grid) %>%
+    igraph::distances(origin_id,
+                      mode = 'out')
+  e_out_costs <- data.frame(id = grid$id,
+                            out_cost = e_out_cost_mat[1,],
+                            stringsAsFactors = FALSE)
   
-  e_in_graph <- transmute(conns, id, id2,
+  e_in_cost_mat <- transmute(conns, id, id2,
                            weight = e_in) %>%
-    filter(weight > 0) %>%
     igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid)
-  e_in_paths <- igraph::all_shortest_paths(e_in_graph,
-                                            origin_id,
-                                            mode = 'in')
-  e_in_costs <- foreach(path = e_in_paths$res, .combine = rbind) %do% {
-    path_char <- as.character(path)
-    steps <- data.frame(from = path_char, 
-                        to = lead(path_char)) %>%
-      head(-1) %>%
-      mutate(e_in = conns_df[paste(from, to), 'e_in'],
-             t_in = conns_df[paste(from, to), 't_in'])
-    summarize(steps,
-              id = last(path_char), 
-              in_cost = sum(e_in * t_in) / sum(t_in),
-              t_in = sum(t_in))
-  }
+                                  vertices = grid) %>%
+    igraph::distances(origin_id,
+                      mode = 'in')
+  e_in_costs <- data.frame(id = grid$id,
+                           in_cost = e_in_cost_mat[1,],
+                           stringsAsFactors = FALSE)
   
   grid %>%
     left_join(e_out_costs, by = 'id') %>%
     left_join(e_in_costs, by = 'id') %>%
-    mutate(rt_cost = (out_cost * t_out + in_cost * t_in) / (t_out + t_in))
+    mutate(rt_cost = out_cost + in_cost)
 }
 
 # Interpolate grid to raster
@@ -198,19 +173,22 @@ interp_grid <- function(grid, origin, radius, res, barriers) {
     rgeos::gBuffer(width = radius)
   landscape_template <- raster(landscape_mask, res = res)
   
+  
+  gstat_data <- select(grid, x, y, out_cost, in_cost, rt_cost) %>%
+    filter(is.finite(out_cost), 
+           is.finite(in_cost),
+           is.finite(rt_cost)) %>%
+    na.omit
   rasters <- foreach(dir = c('out_cost', 'in_cost', 'rt_cost')) %do% {
     gstat_form <- as.formula(sprintf('%s ~ 1', dir))
-    gstat_data <- select(grid, x, y, out_cost, in_cost, rt_cost) %>%
-      na.omit
     idw_mod <- gstat::gstat(formula = gstat_form,
                             locations = ~ x + y,
                             data = gstat_data)
     result <- interpolate(landscape_template, idw_mod) %>%
       mask(landscape_mask)
-    if(is.null(barriers))
-      result
-    else
-      mask(result, barriers, inverse = TRUE)
+    if(!is.null(barriers))
+      result <- mask(result, barriers, inverse = TRUE)
+    result
   }
   names(rasters) <- c('out_cost', 'in_cost', 'rt_cost')
   rasters
@@ -228,10 +206,10 @@ rescale <- function(rasters) {
 
 # Estimate energy landscape
 energy_landscape <- function(origin, radius, res, u, v, 
-                             energy_mod, dur_mod, barriers = NULL) {
+                             energy_mod, barriers = NULL) {
   grid_coords <- create_grid(origin, radius, res)
   connections <- connect_neighbors(grid_coords)
-  wind_conns <- annotate_wind(connections, u, v, energy_mod, dur_mod, barriers)
+  wind_conns <- annotate_wind(connections, u, v, energy_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
   el_raster <- interp_grid(grid_costs, origin, radius, res, barriers)
   norm_raster <- rescale(el_raster)
