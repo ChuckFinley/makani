@@ -47,12 +47,13 @@ rfbo_sample <- rfbo_tracks %>%
   ungroup
 
 # Background records
-background_kpc <- spsample(kpc_forage, 1e3, type = 'random') %>%
+set.seed(1554)
+background_kpc <- spsample(kpc_forage, 1e4, type = 'random') %>%
   as.data.frame %>%
   transmute(Species = 'RFBO',
             Longitude = x,
             Latitude = y,
-            LocDate = sample(t_rng, 1e3, replace = TRUE))
+            LocDate = sample(t_rng, 1e4, replace = TRUE))
 
 # Annotation
 ## Annotate presences with environmental data
