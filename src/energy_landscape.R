@@ -64,7 +64,6 @@ connect_neighbors <- function(grid_coords) {
   }
   
   grid_coords2 <- rename(grid_coords, id2 = id, x2 = x, y2 = y)
-  
   grid_coords %>%
     rowwise %>%
     do(neighbors(.$i, .$j)) %>%
@@ -72,7 +71,7 @@ connect_neighbors <- function(grid_coords) {
     right_join(grid_coords, by = c('i' = 'i', 'j' = 'j')) %>%
     right_join(grid_coords2, by = c('i2' = 'i', 'j2' = 'j')) %>%
     mutate(azimuth_out = atan2(y2 - y, x2 - x),
-           azimuth_in = pi - azimuth_out,
+           azimuth_in = atan2(y - y2, x - x2),
            dist = sqrt((x2 - x)^2 + (y2 - y)^2))
 }
 
@@ -129,41 +128,30 @@ annotate_wind <- function(connections, u, v, e_mod, barriers) {
     anti_join(blocked_segs, by = c('id', 'id2')) %>%
     mutate(mean_u = extract_line(x, y, x2, y2, u),
            mean_v = extract_line(x, y, x2, y2, v),
-           a_out = vector_angle(x2 - x, y2 - y, mean_u, mean_v),
-           a_in = vector_angle(x - x2, y - y2, mean_u, mean_v),
-           m = sqrt(mean_u^2 + mean_v^2),
-           e_out = e_mod(a_out, m),
-           e_in = e_mod(a_in, m))
+           angle = vector_angle(x2 - x, y2 - y, mean_u, mean_v),
+           mag = sqrt(mean_u^2 + mean_v^2),
+           energy = e_mod(angle, mag)) %>%
+    filter(!is.nan(mean_u),
+           !is.nan(mean_v))
 }
 
 # Calculate trip costs based on movement model
 trip_costs <- function(grid, conns, origin) {
   origin_id <- filter(grid, x == origin[1], y == origin[2])$id
   
-  e_out_cost_mat <- transmute(conns, id, id2,
-                           weight = e_out) %>%
+  energy_graph <- transmute(conns, id, id2,
+                            weight = energy) %>%
     igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid) %>%
-    igraph::distances(origin_id,
-                      mode = 'out')
-  e_out_costs <- data.frame(id = grid$id,
-                            out_cost = e_out_cost_mat[1,],
-                            stringsAsFactors = FALSE)
+                                  vertices = grid)
   
-  e_in_cost_mat <- transmute(conns, id, id2,
-                           weight = e_in) %>%
-    igraph::graph_from_data_frame(directed = TRUE,
-                                  vertices = grid) %>%
-    igraph::distances(origin_id,
-                      mode = 'in')
-  e_in_costs <- data.frame(id = grid$id,
-                           in_cost = e_in_cost_mat[1,],
-                           stringsAsFactors = FALSE)
-  
-  grid %>%
-    left_join(e_out_costs, by = 'id') %>%
-    left_join(e_in_costs, by = 'id') %>%
-    mutate(rt_cost = out_cost + in_cost)
+  mutate(grid,
+         out_cost = igraph::distances(energy_graph,
+                                      origin_id,
+                                      mode = 'out')[1,],
+         in_cost = igraph::distances(energy_graph,
+                                     origin_id,
+                                     mode = 'in')[1,],
+         rt_cost = out_cost + in_cost)
 }
 
 # Interpolate grid to raster
