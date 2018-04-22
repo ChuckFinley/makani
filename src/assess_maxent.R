@@ -109,18 +109,18 @@ mcb_depsess <- list(list(label = '2014_1',
 ## Clear out existing files
 clear_leh <- foreach(depsess = leh_depsess) %do% {
   depsess_folder <- sprintf('data/out/Environment/LEH/%s', depsess$label)
-  dir(depsess_folder, full.names = TRUE) %>%
+  dir(depsess_folder, full.names = TRUE, pattern = 'asc') %>%
     sapply(file.remove)
 }
 clear_mcb <- foreach(depsess = leh_depsess) %do% {
   depsess_folder <- sprintf('data/out/Environment/MCB/%s', depsess$label)
-  dir(depsess_folder, full.names = TRUE) %>%
+  dir(depsess_folder, full.names = TRUE, pattern = 'asc') %>%
     sapply(file.remove)
 }
 
 ## Create environmental aggregates
 ### Lehua
-leh_template <- raster('data/out/EnergyLandscapes2/all/LEH_20140513_in.tif',
+leh_template <- raster('data/out/EnergyLandscapes/all/LEH_20140513_in.tif',
                        crs = hi_aea_prj) %>%
   projectRaster(crs = wgs84_prj)
 res(leh_template) = 0.25
@@ -175,7 +175,7 @@ leh_env <- foreach(depsess = leh_depsess) %do% {
               overwrite = TRUE)
 }
 ### MCB
-mcb_template <- raster('data/out/EnergyLandscapes2/all/MCB_20140601_in.tif',
+mcb_template <- raster('data/out/EnergyLandscapes/all/MCB_20140601_in.tif',
                        crs = hi_aea_prj) %>%
   projectRaster(crs = wgs84_prj)
 res(mcb_template) = 0.25
@@ -239,7 +239,7 @@ leh_el <- foreach(depsess = leh_depsess) %do% {
                               origin = ymd('1970-01-01', tz = 'UTC'), 
                               tz = 'UTC')
   
-  ert_stack <- sprintf('data/out/EnergyLandscapes2/all/LEH_%s_rt.tif', 
+  ert_stack <- sprintf('data/out/EnergyLandscapes/all/LEH_%s_rt.tif', 
                        format(posix_depsess, '%Y%m%d')) %>% 
     stack
   projection(ert_stack) <- hi_aea_prj
@@ -260,7 +260,7 @@ mcb_el <- foreach(depsess = mcb_depsess) %do% {
                               origin = ymd('1970-01-01', tz = 'UTC'), 
                               tz = 'UTC')
   
-  ert_stack <- sprintf('data/out/EnergyLandscapes2/all/MCB_%s_rt.tif', 
+  ert_stack <- sprintf('data/out/EnergyLandscapes/all/MCB_%s_rt.tif', 
                        format(posix_depsess, '%Y%m%d')) %>% 
     stack
   projection(ert_stack) <- hi_aea_prj
