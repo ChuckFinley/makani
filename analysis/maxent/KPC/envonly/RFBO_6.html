@@ -1,6 +1,6 @@
 <title>Maxent model for RFBO_6</title>
 <CENTER><H1>Maxent model for RFBO_6</H1></CENTER>
-<br> This page contains some analysis of the Maxent model for RFBO_6, created Sat Apr 21 18:19:57 PDT 2018 using Maxent version 3.4.1.  If you would like to do further analyses, the raw data used here is linked to at the end of this page.<br>
+<br> This page contains some analysis of the Maxent model for RFBO_6, created Sat Apr 21 19:39:05 PDT 2018 using Maxent version 3.4.1.  If you would like to do further analyses, the raw data used here is linked to at the end of this page.<br>
 <br><HR><H2>Analysis of omission/commission</H2>
 The following picture shows the omission rate and predicted area as a function of the cumulative threshold.  The omission rate is is calculated both on the training presence records, and (if test data are used) on the test records.  The omission rate should be close to the predicted omission, because of the definition of the cumulative threshold.
 <br><img src="plots/RFBO_6_omission.png"><br>
@@ -54,5 +54,6 @@ environmentallayers: data/out/Presences/kpc_background.csv<br>
 askoverwrite: false<br>
 replicates: 10<br>
 autorun: true<br>
-Command line used:  environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/envonly togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves<br>
+writeplotdata: true<br>
+Command line used:  environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/envonly togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata<br>
 <br>
