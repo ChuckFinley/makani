@@ -7,31 +7,18 @@ source('src/energy_landscape.R')
 # Movement models
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
-# energy_mod <- function(a, m) {
-#   mean_spd <- 11.7 # m/s
-#   spd <- predict(SgTCModel, 
-#                  re.form = NA,
-#                  newdata = data.frame(Tailwind = m * cos(a)))
-#   odba <- predict(oam, 
-#                   newdata = data.frame(WindAngle = a,
-#                                        WindSpd = m,
-#                                        DeployID = 1145),
-#                   exclude = 's(DeployID)',
-#                   type = 'response')
-#   odba * mean_spd / spd
-# }
 energy_mod <- function(a, m) {
   mean_spd <- 11.7 # m/s
   spd <- predict(SgTCModel, 
                  re.form = NA,
                  newdata = data.frame(Tailwind = m * cos(a)))
-  flap <- predict(fam, 
+  odba <- predict(oam, 
                   newdata = data.frame(WindAngle = a,
                                        WindSpd = m,
                                        DeployID = 1145),
                   exclude = 's(DeployID)',
                   type = 'response')
-  flap * mean_spd / spd
+  odba * mean_spd / spd
 }
 
 # Spatial data
@@ -119,7 +106,6 @@ mcb_dates <- c(mcb_depsess, kpc_dates)
 
 # Generate energy landscapes
 ## Foreach colony...
-kpc_dates 
 foreach(col_name = list('KPC', 'LEH', 'MCB'),
         col_loc = list(kpc_hi_aea, leh_hi_aea, mcb_hi_aea),
         col_dates = list(kpc_dates, leh_dates, mcb_dates)) %do% {
