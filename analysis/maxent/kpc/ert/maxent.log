@@ -1,10 +1,11 @@
-Sun Apr 22 13:28:54 PDT 2018
+Mon Apr 23 13:48:01 PDT 2018
 MaxEnt version 3.4.1
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 67108864, free 38640408, used 28468456, increment 28468456
+readGrid: max memory 536870912, total allocated 67108864, free 39745216, used 27363648, increment 27363648
 Reading samples from rfbo_accessible.csv
-Read samples: max memory 536870912, total allocated 67108864, free 32101064, used 35007800, increment 6539344
+Read samples: max memory 536870912, total allocated 67108864, free 31618264, used 35490600, increment 8126952
 Adding samples to background in feature space
+Time since start: 1.005
 Command line used:  environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/ert togglelayerselected=LocDate togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata
 Command line to repeat: java density.MaxEnt nowarnings noprefixes responsecurves outputformat=raw outputdirectory=analysis/maxent/KPC/ert samplesfile=data/out/Presences/rfbo_accessible.csv environmentallayers=data/out/Presences/kpc_background.csv noaskoverwrite replicates=10 autorun writeplotdata -N D2C -N LocDate -N UD
 Species: RFBO_0 RFBO_1 RFBO_2 RFBO_3 RFBO_4 RFBO_5 RFBO_6 RFBO_7 RFBO_8 RFBO_9
@@ -20,815 +21,815 @@ replicates: 10
 autorun: true
 writeplotdata: true
 
-Time since start: 1.018
-getSamples: max memory 536870912, total allocated 67108864, free 35371880, used 31736984, increment -3270816
+getSamples: max memory 536870912, total allocated 67108864, free 34740104, used 32368760, increment -3121840
 Making features
-makeFeatures: max memory 536870912, total allocated 67108864, free 32127568, used 34981296, increment 3244312
+makeFeatures: max memory 536870912, total allocated 67108864, free 31356712, used 35752152, increment 3383392
 RFBO_0: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
+Time since start: 2.011
 2758 samples
-Density: max memory 536870912, total allocated 67108864, free 52760064, used 14348800, increment -20632496
-linearPredictor: max memory 536870912, total allocated 67108864, free 52760064, used 14348800, increment 0
-Time since start: 2.041
-FeaturedSpace: max memory 536870912, total allocated 67108864, free 52758016, used 14350848, increment 2048
-Sequential: max memory 536870912, total allocated 67108864, free 52758016, used 14350848, increment 0
-Initial loss: 9.439625028047155
-Initial test loss: 9.439625028047155
-Time since start: 9.339
-500: time = 7.272000 loss = 8.956183 testLoss 8.861746
-Resulting gain: 0.4834420959202461
-Time since start: 10.791
+Density: max memory 536870912, total allocated 67108864, free 51679744, used 15429120, increment -20323032
+linearPredictor: max memory 536870912, total allocated 67108864, free 51679744, used 15429120, increment 0
+FeaturedSpace: max memory 536870912, total allocated 67108864, free 51679744, used 15429120, increment 0
+Sequential: max memory 536870912, total allocated 67108864, free 51677696, used 15431168, increment 2048
+Initial loss: 9.439386468943006
+Initial test loss: 9.439386468943006
+Time since start: 9.056
+500: time = 6.854000 loss = 8.971636 testLoss 8.883977
+Resulting gain: 0.4677505807404483
+Time since start: 10.576
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_0.csv
 RFBO_0 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 67108864, free 24273968, used 42834896, increment 28484048
+makeFeatures: max memory 536870912, total allocated 95420416, free 42197360, used 53223056, increment 37791888
 RFBO_0 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 67108864, free 20072520, used 47036344, increment 4201448
-linearPredictor: max memory 536870912, total allocated 67108864, free 19971888, used 47136976, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 67108864, free 19971888, used 47136976, increment 0
-Sequential: max memory 536870912, total allocated 67108864, free 19971888, used 47136976, increment 0
-Initial loss: 9.439625028047155
-Time since start: 14.429
-240: time = 2.713000 loss = 9.131492
-Resulting gain: 0.30813323495299016
+Density: max memory 536870912, total allocated 95420416, free 38078224, used 57342192, increment 4119136
+linearPredictor: max memory 536870912, total allocated 95420416, free 38078224, used 57342192, increment 0
+FeaturedSpace: max memory 536870912, total allocated 95420416, free 38078224, used 57342192, increment 0
+Sequential: max memory 536870912, total allocated 95420416, free 38078224, used 57342192, increment 0
+Initial loss: 9.439386468943006
+Time since start: 14.773
+280: time = 3.382000 loss = 9.146845
+Resulting gain: 0.2925419114376382
 RFBO_0 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 80740352, free 26021608, used 54718744, increment 7581768
+makeFeatures: max memory 536870912, total allocated 113246208, free 47594496, used 65651712, increment 8309520
 RFBO_0 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 80740352, free 24609968, used 56130384, increment 1411640
-linearPredictor: max memory 536870912, total allocated 80740352, free 24509336, used 56231016, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 80740352, free 24509336, used 56231016, increment 0
-Sequential: max memory 536870912, total allocated 80740352, free 24509336, used 56231016, increment 0
-Initial loss: 9.439625028047155
-Time since start: 15.778
-160: time = 1.150000 loss = 9.415162
-Resulting gain: 0.024462992566670394
+Density: max memory 536870912, total allocated 113246208, free 46190112, used 67056096, increment 1404384
+linearPredictor: max memory 536870912, total allocated 113246208, free 46089504, used 67156704, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 113246208, free 46089504, used 67156704, increment 0
+Sequential: max memory 536870912, total allocated 113246208, free 46089504, used 67156704, increment 0
+Initial loss: 9.439386468943006
+Time since start: 15.985
+160: time = 0.980000 loss = 9.414945
+Resulting gain: 0.024441568928809332
 RFBO_0 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 80740352, free 30517280, used 50223072, increment -6007944
+makeFeatures: max memory 536870912, total allocated 113246208, free 27887728, used 85358480, increment 18201776
 RFBO_0 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 80740352, free 28167968, used 52572384, increment 2349312
-linearPredictor: max memory 536870912, total allocated 80740352, free 28167968, used 52572384, increment 0
-FeaturedSpace: max memory 536870912, total allocated 80740352, free 28167968, used 52572384, increment 0
-Sequential: max memory 536870912, total allocated 80740352, free 28167968, used 52572384, increment 0
-Initial loss: 9.439625028047155
-Time since start: 18.914
-340: time = 2.956000 loss = 9.323494
-Resulting gain: 0.11613141502617808
+Density: max memory 536870912, total allocated 113246208, free 25841440, used 87404768, increment 2046288
+linearPredictor: max memory 536870912, total allocated 113246208, free 25841440, used 87404768, increment 0
+FeaturedSpace: max memory 536870912, total allocated 113246208, free 25841440, used 87404768, increment 0
+Sequential: max memory 536870912, total allocated 113246208, free 25841440, used 87404768, increment 0
+Initial loss: 9.439386468943006
+Time since start: 19.048
+380: time = 2.816000 loss = 9.323346
+Resulting gain: 0.11604060969987273
 RFBO_0 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 80740352, free 21405120, used 59335232, increment 6762848
+makeFeatures: max memory 536870912, total allocated 113246208, free 54960096, used 58286112, increment -29118656
 RFBO_0 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 80740352, free 19870216, used 60870136, increment 1534904
-linearPredictor: max memory 536870912, total allocated 80740352, free 19870216, used 60870136, increment 0
-FeaturedSpace: max memory 536870912, total allocated 80740352, free 19870216, used 60870136, increment 0
-Sequential: max memory 536870912, total allocated 80740352, free 19870216, used 60870136, increment 0
-Initial loss: 9.439625028047155
-Time since start: 20.684
-340: time = 1.622000 loss = 9.266297
-Resulting gain: 0.1733278910224776
+Density: max memory 536870912, total allocated 113246208, free 53724000, used 59522208, increment 1236096
+linearPredictor: max memory 536870912, total allocated 113246208, free 53623392, used 59622816, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 113246208, free 53623392, used 59622816, increment 0
+Sequential: max memory 536870912, total allocated 113246208, free 53623392, used 59622816, increment 0
+Initial loss: 9.439386468943006
+Time since start: 20.906
+340: time = 1.683000 loss = 9.266067
+Resulting gain: 0.17331920799305323
 RFBO_0 response curves
-getSamples: max memory 536870912, total allocated 80740352, free 17415352, used 63325000, increment 2454864
+getSamples: max memory 536870912, total allocated 113246208, free 52977328, used 60268880, increment 646064
 Making features
-makeFeatures: max memory 536870912, total allocated 80740352, free 14296992, used 66443360, increment 3118360
+Time since start: 21.962
+makeFeatures: max memory 536870912, total allocated 113246208, free 50217056, used 63029152, increment 2760272
 RFBO_1: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
-Time since start: 21.696
 2758 samples
-Density: max memory 536870912, total allocated 80740352, free 14023432, used 66716920, increment 273560
-linearPredictor: max memory 536870912, total allocated 80740352, free 13922808, used 66817544, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 80740352, free 13922808, used 66817544, increment 0
-Sequential: max memory 536870912, total allocated 80740352, free 13922808, used 66817544, increment 0
+Density: max memory 536870912, total allocated 113246208, free 44056224, used 69189984, increment 6160832
+linearPredictor: max memory 536870912, total allocated 113246208, free 44056224, used 69189984, increment 0
+FeaturedSpace: max memory 536870912, total allocated 113246208, free 44056224, used 69189984, increment 0
+Sequential: max memory 536870912, total allocated 113246208, free 44056224, used 69189984, increment 0
 Initial loss: 9.439545514668987
 Initial test loss: 9.439545514668987
-Time since start: 27.731
-500: time = 5.999000 loss = 8.948694 testLoss 8.957156
-Resulting gain: 0.490851036672483
+Time since start: 28.126
+500: time = 5.875000 loss = 8.963773 testLoss 8.975404
+Resulting gain: 0.47577233883558634
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_1.csv
 RFBO_1 response curves
+Time since start: 29.14
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 132120576, free 24951232, used 107169344, increment 40351800
+makeFeatures: max memory 536870912, total allocated 113246208, free 33101920, used 80144288, increment 10954304
 RFBO_1 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
-Time since start: 28.738
 2758 samples
-Density: max memory 536870912, total allocated 132120576, free 21630552, used 110490024, increment 3320680
-linearPredictor: max memory 536870912, total allocated 132120576, free 21529928, used 110590648, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 132120576, free 21529928, used 110590648, increment 0
-Sequential: max memory 536870912, total allocated 132120576, free 21529928, used 110590648, increment 0
+Density: max memory 536870912, total allocated 113246208, free 30895184, used 82351024, increment 2206736
+linearPredictor: max memory 536870912, total allocated 113246208, free 30794560, used 82451648, increment 100624
+FeaturedSpace: max memory 536870912, total allocated 113246208, free 30794560, used 82451648, increment 0
+Sequential: max memory 536870912, total allocated 113246208, free 30794560, used 82451648, increment 0
 Initial loss: 9.439545514668987
-Time since start: 31.579
-280: time = 2.831000 loss = 9.123917
-Resulting gain: 0.3156286195455529
+Time since start: 31.979
+280: time = 2.762000 loss = 9.140392
+Resulting gain: 0.29915374452684773
 RFBO_1 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 84930808, used 63966984, increment -46623664
+makeFeatures: max memory 536870912, total allocated 114294784, free 49335072, used 64959712, increment -17491936
 RFBO_1 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 83359544, used 65538248, increment 1571264
-linearPredictor: max memory 536870912, total allocated 148897792, free 83359544, used 65538248, increment 0
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 83359544, used 65538248, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 83359544, used 65538248, increment 0
+Density: max memory 536870912, total allocated 114294784, free 47933264, used 66361520, increment 1401808
+linearPredictor: max memory 536870912, total allocated 114294784, free 47933264, used 66361520, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 47933264, used 66361520, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 47933264, used 66361520, increment 0
 Initial loss: 9.439545514668987
-140: time = 0.812000 loss = 9.415184
-Resulting gain: 0.024361724660041162
+Time since start: 33.129
+180: time = 1.020000 loss = 9.415223
+Resulting gain: 0.02432300181040148
 RFBO_1 response curves
 Response curve: only bathy
 Making features
-Time since start: 32.589
-makeFeatures: max memory 536870912, total allocated 148897792, free 66580752, used 82317040, increment 16778792
+makeFeatures: max memory 536870912, total allocated 114294784, free 28368848, used 85925936, increment 19564416
 RFBO_1 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 65319592, used 83578200, increment 1261160
-linearPredictor: max memory 536870912, total allocated 148897792, free 65218968, used 83678824, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 65218968, used 83678824, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 65218968, used 83678824, increment 0
+Density: max memory 536870912, total allocated 114294784, free 26417144, used 87877640, increment 1951704
+linearPredictor: max memory 536870912, total allocated 114294784, free 26417144, used 87877640, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 26417144, used 87877640, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 26417144, used 87877640, increment 0
 Initial loss: 9.439545514668987
-Time since start: 35.147
-340: time = 2.499000 loss = 9.324369
-Resulting gain: 0.11517664033701536
+Time since start: 35.425
+300: time = 2.157000 loss = 9.324492
+Resulting gain: 0.11505327594912096
 RFBO_1 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 60135264, used 88762528, increment 5083704
+makeFeatures: max memory 536870912, total allocated 114294784, free 23469968, used 90824816, increment 2947176
 RFBO_1 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 58637328, used 90260464, increment 1497936
-linearPredictor: max memory 536870912, total allocated 148897792, free 58536704, used 90361088, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 58536704, used 90361088, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 58536704, used 90361088, increment 0
+Density: max memory 536870912, total allocated 114294784, free 21930832, used 92363952, increment 1539136
+linearPredictor: max memory 536870912, total allocated 114294784, free 21930832, used 92363952, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 21930832, used 92363952, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 21930832, used 92363952, increment 0
 Initial loss: 9.439545514668987
-Time since start: 36.772
-280: time = 1.501000 loss = 9.261577
-Resulting gain: 0.1779680840088549
+Time since start: 36.934
+300: time = 1.367000 loss = 9.261615
+Resulting gain: 0.1779307432503554
 RFBO_1 response curves
-getSamples: max memory 536870912, total allocated 148897792, free 75756032, used 73141760, increment -17219328
+getSamples: max memory 536870912, total allocated 114294784, free 35789312, used 78505472, increment -13858480
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 72660168, used 76237624, increment 3095864
+makeFeatures: max memory 536870912, total allocated 114294784, free 33258616, used 81036168, increment 2530696
 RFBO_2: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 66248552, used 82649240, increment 6411616
-linearPredictor: max memory 536870912, total allocated 148897792, free 66248552, used 82649240, increment 0
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 66248552, used 82649240, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 66248552, used 82649240, increment 0
-Initial loss: 9.43946599496794
-Initial test loss: 9.43946599496794
-Time since start: 43.421
-500: time = 5.770000 loss = 8.947102 testLoss 8.995559
-Resulting gain: 0.4923642297606161
+Time since start: 37.943
+Density: max memory 536870912, total allocated 114294784, free 26824976, used 87469808, increment 6433640
+linearPredictor: max memory 536870912, total allocated 114294784, free 26824976, used 87469808, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 26824976, used 87469808, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 26824976, used 87469808, increment 0
+Initial loss: 9.439386468943006
+Initial test loss: 9.439386468943006
+Time since start: 43.899
+500: time = 5.949000 loss = 8.961833 testLoss 9.010429
+Resulting gain: 0.477553553946402
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_2.csv
 RFBO_2 response curves
+Time since start: 44.919
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 44385112, used 104512680, increment 21863440
+makeFeatures: max memory 536870912, total allocated 114294784, free 60911648, used 53383136, increment -34086672
 RFBO_2 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
-Time since start: 44.456
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 42193928, used 106703864, increment 2191184
-linearPredictor: max memory 536870912, total allocated 148897792, free 42093312, used 106804480, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 42093312, used 106804480, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 42093312, used 106804480, increment 0
-Initial loss: 9.43946599496794
-Time since start: 47.316
-280: time = 2.843000 loss = 9.122444
-Resulting gain: 0.3170224745579606
+Density: max memory 536870912, total allocated 114294784, free 74712360, used 39582424, increment -13800712
+linearPredictor: max memory 536870912, total allocated 114294784, free 74611752, used 39683032, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 74611752, used 39683032, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 74611752, used 39683032, increment 0
+Initial loss: 9.439386468943006
+Time since start: 47.81
+280: time = 2.807000 loss = 9.138769
+Resulting gain: 0.3006170918906008
 RFBO_2 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 40832592, used 108065200, increment 1260720
+makeFeatures: max memory 536870912, total allocated 114294784, free 54182056, used 60112728, increment 20429696
 RFBO_2 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 39316784, used 109581008, increment 1515808
-linearPredictor: max memory 536870912, total allocated 148897792, free 39316784, used 109581008, increment 0
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 39316784, used 109581008, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 39316784, used 109581008, increment 0
-Initial loss: 9.43946599496794
-140: time = 0.728000 loss = 9.414368
-Resulting gain: 0.02509831873650903
+Density: max memory 536870912, total allocated 114294784, free 52881472, used 61413312, increment 1300584
+linearPredictor: max memory 536870912, total allocated 114294784, free 52780864, used 61513920, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 52780864, used 61513920, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 52780864, used 61513920, increment 0
+Initial loss: 9.439386468943006
+Time since start: 49.21
+180: time = 1.272000 loss = 9.414328
+Resulting gain: 0.025058251256732333
 RFBO_2 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 22905832, used 125991960, increment 16410952
+makeFeatures: max memory 536870912, total allocated 114294784, free 32396416, used 81898368, increment 20384448
 RFBO_2 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 21390376, used 127507416, increment 1515456
-linearPredictor: max memory 536870912, total allocated 148897792, free 21289760, used 127608032, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 21289760, used 127608032, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 21289760, used 127608032, increment 0
-Initial loss: 9.43946599496794
-Time since start: 50.288
-300: time = 2.054000 loss = 9.323964
-Resulting gain: 0.11550161047298602
+Density: max memory 536870912, total allocated 114294784, free 30861376, used 83433408, increment 1535040
+linearPredictor: max memory 536870912, total allocated 114294784, free 30861376, used 83433408, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 30861376, used 83433408, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 30861376, used 83433408, increment 0
+Initial loss: 9.439386468943006
+Time since start: 52.048
+360: time = 2.682000 loss = 9.324151
+Resulting gain: 0.1152350758310483
 RFBO_2 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 28689224, used 120208568, increment -7399464
+makeFeatures: max memory 536870912, total allocated 114294784, free 20963648, used 93331136, increment 9897728
 RFBO_2 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 27141144, used 121756648, increment 1548080
-linearPredictor: max memory 536870912, total allocated 148897792, free 27141144, used 121756648, increment 0
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 27141144, used 121756648, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 27141144, used 121756648, increment 0
-Initial loss: 9.43946599496794
-Time since start: 51.805
-320: time = 1.428000 loss = 9.266253
-Resulting gain: 0.17321336745795435
+Density: max memory 536870912, total allocated 114294784, free 19813328, used 94481456, increment 1150320
+linearPredictor: max memory 536870912, total allocated 114294784, free 19712720, used 94582064, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 19712720, used 94582064, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 19712720, used 94582064, increment 0
+Initial loss: 9.439386468943006
+Time since start: 53.654
+340: time = 1.523000 loss = 9.266264
+Resulting gain: 0.1731227449968351
 RFBO_2 response curves
-getSamples: max memory 536870912, total allocated 148897792, free 35002536, used 113895256, increment -7861392
+getSamples: max memory 536870912, total allocated 114294784, free 45527552, used 68767232, increment -25814832
 Making features
-makeFeatures: max memory 536870912, total allocated 148897792, free 32126192, used 116771600, increment 2876344
+makeFeatures: max memory 536870912, total allocated 114294784, free 43276168, used 71018616, increment 2251384
 RFBO_3: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 148897792, free 25836408, used 123061384, increment 6289784
-linearPredictor: max memory 536870912, total allocated 148897792, free 25836408, used 123061384, increment 0
-FeaturedSpace: max memory 536870912, total allocated 148897792, free 25836408, used 123061384, increment 0
-Sequential: max memory 536870912, total allocated 148897792, free 25836408, used 123061384, increment 0
-Initial loss: 9.43946599496794
-Initial test loss: 9.43946599496794
-Time since start: 57.832
-500: time = 5.314000 loss = 8.954311 testLoss 8.876063
-Resulting gain: 0.4851549871446377
+Density: max memory 536870912, total allocated 114294784, free 37138944, used 77155840, increment 6137224
+linearPredictor: max memory 536870912, total allocated 114294784, free 37038336, used 77256448, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 37038336, used 77256448, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 37038336, used 77256448, increment 0
+Initial loss: 9.439386468943006
+Initial test loss: 9.439386468943006
+Time since start: 60.327
+500: time = 5.806000 loss = 8.969820 testLoss 8.893861
+Resulting gain: 0.46956680190094247
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_3.csv
 RFBO_3 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 189792256, free 19365104, used 170427152, increment 47365768
+makeFeatures: max memory 536870912, total allocated 114294784, free 38784800, used 75509984, increment -1746464
 RFBO_3 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 189792256, free 44275792, used 145516464, increment -24910688
-linearPredictor: max memory 536870912, total allocated 189792256, free 44160488, used 145631768, increment 115304
-FeaturedSpace: max memory 536870912, total allocated 189792256, free 44160488, used 145631768, increment 0
-Sequential: max memory 536870912, total allocated 189792256, free 44160488, used 145631768, increment 0
-Initial loss: 9.43946599496794
-Time since start: 60.548
-280: time = 2.033000 loss = 9.128111
-Resulting gain: 0.3113545930449835
+Density: max memory 536870912, total allocated 114294784, free 45663224, used 68631560, increment -6878424
+linearPredictor: max memory 536870912, total allocated 114294784, free 45562616, used 68732168, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 45562616, used 68732168, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 45562616, used 68732168, increment 0
+Initial loss: 9.439386468943006
+Time since start: 63.208
+300: time = 2.165000 loss = 9.144232
+Resulting gain: 0.2951545187719109
 RFBO_3 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 189792256, free 36419344, used 153372912, increment 7741144
+makeFeatures: max memory 536870912, total allocated 114294784, free 38929720, used 75365064, increment 6632896
 RFBO_3 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 189792256, free 35075288, used 154716968, increment 1344056
-linearPredictor: max memory 536870912, total allocated 189792256, free 34974672, used 154817584, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 189792256, free 34974672, used 154817584, increment 0
-Sequential: max memory 536870912, total allocated 189792256, free 34974672, used 154817584, increment 0
-Initial loss: 9.43946599496794
-180: time = 0.889000 loss = 9.414977
-Resulting gain: 0.024488622691183792
+Density: max memory 536870912, total allocated 114294784, free 37524816, used 76769968, increment 1404904
+linearPredictor: max memory 536870912, total allocated 114294784, free 37424208, used 76870576, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 37424208, used 76870576, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 37424208, used 76870576, increment 0
+Initial loss: 9.439386468943006
+180: time = 0.746000 loss = 9.414940
+Resulting gain: 0.024446682677311316
 RFBO_3 response curves
 Response curve: only bathy
 Making features
-Time since start: 61.553
-makeFeatures: max memory 536870912, total allocated 189792256, free 34447192, used 155345064, increment 527480
+makeFeatures: max memory 536870912, total allocated 114294784, free 67603072, used 46691712, increment -30178864
 RFBO_3 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 189792256, free 32917232, used 156875024, increment 1529960
-linearPredictor: max memory 536870912, total allocated 189792256, free 32816616, used 156975640, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 189792256, free 32816616, used 156975640, increment 0
-Sequential: max memory 536870912, total allocated 189792256, free 32816616, used 156975640, increment 0
-Initial loss: 9.43946599496794
-Time since start: 63.949
-340: time = 2.358000 loss = 9.323355
-Resulting gain: 0.11611149127677578
+Density: max memory 536870912, total allocated 114294784, free 66115072, used 48179712, increment 1488000
+linearPredictor: max memory 536870912, total allocated 114294784, free 66115072, used 48179712, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 66115072, used 48179712, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 66115072, used 48179712, increment 0
+Initial loss: 9.439386468943006
+Time since start: 66.051
+300: time = 1.933000 loss = 9.323570
+Resulting gain: 0.11581671623916634
 RFBO_3 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 189792256, free 22923024, used 166869232, increment 9893592
+makeFeatures: max memory 536870912, total allocated 114294784, free 59021152, used 55273632, increment 7093920
 RFBO_3 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 189792256, free 31828936, used 157963320, increment -8905912
-linearPredictor: max memory 536870912, total allocated 189792256, free 31728320, used 158063936, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 189792256, free 31728320, used 158063936, increment 0
-Sequential: max memory 536870912, total allocated 189792256, free 31728320, used 158063936, increment 0
-Initial loss: 9.43946599496794
-Time since start: 65.728
-320: time = 1.700000 loss = 9.266360
-Resulting gain: 0.17310572621210163
+Density: max memory 536870912, total allocated 114294784, free 57482016, used 56812768, increment 1539136
+linearPredictor: max memory 536870912, total allocated 114294784, free 57482016, used 56812768, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 57482016, used 56812768, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 57482016, used 56812768, increment 0
+Initial loss: 9.439386468943006
+Time since start: 67.671
+380: time = 1.538000 loss = 9.266318
+Resulting gain: 0.17306847967744687
 RFBO_3 response curves
-getSamples: max memory 536870912, total allocated 189792256, free 21763680, used 168028576, increment 9964640
+getSamples: max memory 536870912, total allocated 114294784, free 42742272, used 71552512, increment 14739744
 Making features
-makeFeatures: max memory 536870912, total allocated 189792256, free 18933792, used 170858464, increment 2829888
+makeFeatures: max memory 536870912, total allocated 114294784, free 40235968, used 74058816, increment 2506304
 RFBO_4: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 189792256, free 18352208, used 171440048, increment 581584
-linearPredictor: max memory 536870912, total allocated 189792256, free 18251592, used 171540664, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 189792256, free 18235216, used 171557040, increment 16376
-Sequential: max memory 536870912, total allocated 189792256, free 18235216, used 171557040, increment 0
-Initial loss: 9.43946599496794
-Initial test loss: 9.43946599496794
-Time since start: 71.648
-500: time = 5.083000 loss = 8.949591 testLoss 8.949345
-Resulting gain: 0.4898746753065222
+Density: max memory 536870912, total allocated 114294784, free 34191712, used 80103072, increment 6044256
+linearPredictor: max memory 536870912, total allocated 114294784, free 34091104, used 80203680, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 34091104, used 80203680, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 34091104, used 80203680, increment 0
+Initial loss: 9.439386468943006
+Initial test loss: 9.439386468943006
+Time since start: 74.146
+500: time = 5.647000 loss = 8.964791 testLoss 8.961460
+Resulting gain: 0.4745955198100109
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_4.csv
 RFBO_4 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 41466344, used 163005976, increment -8551064
+makeFeatures: max memory 536870912, total allocated 114294784, free 27569824, used 86724960, increment 6521280
 RFBO_4 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 204472320, free 39261496, used 165210824, increment 2204848
-linearPredictor: max memory 536870912, total allocated 204472320, free 39160880, used 165311440, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 39160880, used 165311440, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 39160880, used 165311440, increment 0
-Initial loss: 9.43946599496794
-Time since start: 74.799
-280: time = 2.421000 loss = 9.128477
-Resulting gain: 0.3109893650553044
+Density: max memory 536870912, total allocated 114294784, free 48458024, used 65836760, increment -20888200
+linearPredictor: max memory 536870912, total allocated 114294784, free 48357416, used 65937368, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 48357416, used 65937368, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 48357416, used 65937368, increment 0
+Initial loss: 9.439386468943006
+Time since start: 76.674
+280: time = 1.893000 loss = 9.145421
+Resulting gain: 0.29396519031465473
 RFBO_4 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 52586040, used 151886280, increment -13425160
+makeFeatures: max memory 536870912, total allocated 114294784, free 29536632, used 84758152, increment 18820784
 RFBO_4 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 204472320, free 51196952, used 153275368, increment 1389088
-linearPredictor: max memory 536870912, total allocated 204472320, free 51096336, used 153375984, increment 100616
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 51096336, used 153375984, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 51096336, used 153375984, increment 0
-Initial loss: 9.43946599496794
-Time since start: 75.889
-180: time = 1.002000 loss = 9.415012
-Resulting gain: 0.024454106968130773
+Density: max memory 536870912, total allocated 114294784, free 28131808, used 86162976, increment 1404824
+linearPredictor: max memory 536870912, total allocated 114294784, free 28031200, used 86263584, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 28031200, used 86263584, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 28031200, used 86263584, increment 0
+Initial loss: 9.439386468943006
+160: time = 0.639000 loss = 9.414974
+Resulting gain: 0.024412356235600896
 RFBO_4 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 31300376, used 173171944, increment 19795960
+makeFeatures: max memory 536870912, total allocated 114294784, free 61166344, used 53128440, increment -33135144
 RFBO_4 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 204472320, free 138626848, used 65845472, increment -107326472
-linearPredictor: max memory 536870912, total allocated 204472320, free 138626848, used 65845472, increment 0
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 138626848, used 65845472, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 138626848, used 65845472, increment 0
-Initial loss: 9.43946599496794
-Time since start: 78.638
-320: time = 2.652000 loss = 9.322459
-Resulting gain: 0.11700749170310942
+Density: max memory 536870912, total allocated 114294784, free 59632096, used 54662688, increment 1534248
+linearPredictor: max memory 536870912, total allocated 114294784, free 59632096, used 54662688, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 59632096, used 54662688, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 59632096, used 54662688, increment 0
+Initial loss: 9.439386468943006
+Time since start: 79.184
+280: time = 1.707000 loss = 9.322617
+Resulting gain: 0.11676910143368602
 RFBO_4 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 34917104, used 169555216, increment 103709744
+makeFeatures: max memory 536870912, total allocated 114294784, free 24146784, used 90148000, increment 35485312
 RFBO_4 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2758 samples
-Density: max memory 536870912, total allocated 204472320, free 33341640, used 171130680, increment 1575464
-linearPredictor: max memory 536870912, total allocated 204472320, free 33341640, used 171130680, increment 0
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 33341640, used 171130680, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 33341640, used 171130680, increment 0
-Initial loss: 9.43946599496794
-Time since start: 80.569
-320: time = 1.839000 loss = 9.262486
-Resulting gain: 0.1769798640023108
+Density: max memory 536870912, total allocated 114294784, free 22757664, used 91537120, increment 1389120
+linearPredictor: max memory 536870912, total allocated 114294784, free 22657056, used 91637728, increment 100608
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 22657056, used 91637728, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 22657056, used 91637728, increment 0
+Initial loss: 9.439386468943006
+Time since start: 80.69
+360: time = 1.425000 loss = 9.262503
+Resulting gain: 0.17688308361172211
 RFBO_4 response curves
-getSamples: max memory 536870912, total allocated 204472320, free 87424976, used 117047344, increment -54083336
+getSamples: max memory 536870912, total allocated 114294784, free 57229952, used 57064832, increment -34572896
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 85021448, used 119450872, increment 2403528
+makeFeatures: max memory 536870912, total allocated 114294784, free 54486576, used 59808208, increment 2743376
 RFBO_5: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 78885440, used 125586880, increment 6136008
-linearPredictor: max memory 536870912, total allocated 204472320, free 78784816, used 125687504, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 78784816, used 125687504, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 78784816, used 125687504, increment 0
+Density: max memory 536870912, total allocated 114294784, free 48315008, used 65979776, increment 6171568
+linearPredictor: max memory 536870912, total allocated 114294784, free 48315008, used 65979776, increment 0
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 48315008, used 65979776, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 48315008, used 65979776, increment 0
 Initial loss: 9.439545514668987
 Initial test loss: 9.439545514668987
-Time since start: 86.558
-500: time = 5.231000 loss = 8.957002 testLoss 8.844564
-Resulting gain: 0.48254363602086414
+Time since start: 86.999
+500: time = 5.569000 loss = 8.972896 testLoss 8.851531
+Resulting gain: 0.4666494915607746
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_5.csv
 RFBO_5 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 32449936, used 172022384, increment 46334880
+makeFeatures: max memory 536870912, total allocated 114294784, free 19320544, used 94974240, increment 28994464
 RFBO_5 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 30232288, used 174240032, increment 2217648
-linearPredictor: max memory 536870912, total allocated 204472320, free 30131664, used 174340656, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 30131664, used 174340656, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 30131664, used 174340656, increment 0
+Density: max memory 536870912, total allocated 114294784, free 17059032, used 97235752, increment 2261512
+linearPredictor: max memory 536870912, total allocated 114294784, free 16958408, used 97336376, increment 100624
+FeaturedSpace: max memory 536870912, total allocated 114294784, free 16958408, used 97336376, increment 0
+Sequential: max memory 536870912, total allocated 114294784, free 16958408, used 97336376, increment 0
 Initial loss: 9.439545514668987
-Time since start: 89.282
-240: time = 2.045000 loss = 9.130106
-Resulting gain: 0.30943955733410355
+Time since start: 89.604
+280: time = 1.979000 loss = 9.147422
+Resulting gain: 0.2921230366248686
 RFBO_5 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 87776176, used 116696144, increment -57644512
+makeFeatures: max memory 536870912, total allocated 199229440, free 107941952, used 91287488, increment -6048888
 RFBO_5 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 86555136, used 117917184, increment 1221040
-linearPredictor: max memory 536870912, total allocated 204472320, free 86030848, used 118441472, increment 524288
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 86030848, used 118441472, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 86030848, used 118441472, increment 0
+Density: max memory 536870912, total allocated 199229440, free 106828352, used 92401088, increment 1113600
+linearPredictor: max memory 536870912, total allocated 199229440, free 106727728, used 92501712, increment 100624
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 106727728, used 92501712, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 106727728, used 92501712, increment 0
 Initial loss: 9.439545514668987
-140: time = 0.834000 loss = 9.415120
-Resulting gain: 0.02442582710309793
+160: time = 0.676000 loss = 9.415166
+Resulting gain: 0.02437998567779509
 RFBO_5 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 69749136, used 134723184, increment 16281712
+makeFeatures: max memory 536870912, total allocated 199229440, free 89067592, used 110161848, increment 17660136
 RFBO_5 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
-Time since start: 90.324
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 68279608, used 136192712, increment 1469528
-linearPredictor: max memory 536870912, total allocated 204472320, free 68178984, used 136293336, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 68178984, used 136293336, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 68178984, used 136293336, increment 0
+Density: max memory 536870912, total allocated 199229440, free 87797848, used 111431592, increment 1269744
+linearPredictor: max memory 536870912, total allocated 199229440, free 87697224, used 111532216, increment 100624
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 87697224, used 111532216, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 87697224, used 111532216, increment 0
 Initial loss: 9.439545514668987
-Time since start: 93.266
-360: time = 2.937000 loss = 9.321376
-Resulting gain: 0.11816944277141062
+Time since start: 92.552
+340: time = 2.100000 loss = 9.321559
+Resulting gain: 0.11798637752606389
 RFBO_5 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 41333024, used 163139296, increment 26845960
+makeFeatures: max memory 536870912, total allocated 199229440, free 43572200, used 155657240, increment 44125024
 RFBO_5 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 40142368, used 164329952, increment 1190656
-linearPredictor: max memory 536870912, total allocated 204472320, free 40041744, used 164430576, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 40041744, used 164430576, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 40041744, used 164430576, increment 0
+Density: max memory 536870912, total allocated 199229440, free 41973240, used 157256200, increment 1598960
+linearPredictor: max memory 536870912, total allocated 199229440, free 41973240, used 157256200, increment 0
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 41973240, used 157256200, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 41973240, used 157256200, increment 0
 Initial loss: 9.439545514668987
-Time since start: 95.543
-420: time = 2.140000 loss = 9.267306
-Resulting gain: 0.17223945619619663
+Time since start: 94.277
+340: time = 1.633000 loss = 9.267477
+Resulting gain: 0.17206820209002593
 RFBO_5 response curves
-getSamples: max memory 536870912, total allocated 204472320, free 43253264, used 161219056, increment -3211520
+getSamples: max memory 536870912, total allocated 199229440, free 52941248, used 146288192, increment -10968008
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 40633872, used 163838448, increment 2619392
+makeFeatures: max memory 536870912, total allocated 199229440, free 50408760, used 148820680, increment 2532488
 RFBO_6: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 34342416, used 170129904, increment 6291456
-linearPredictor: max memory 536870912, total allocated 204472320, free 34342416, used 170129904, increment 0
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 34342416, used 170129904, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 34342416, used 170129904, increment 0
-Initial loss: 9.439545514668987
-Initial test loss: 9.439545514668987
-Time since start: 101.396
-500: time = 5.000000 loss = 8.946958 testLoss 8.956337
-Resulting gain: 0.4925876561071991
+Density: max memory 536870912, total allocated 199229440, free 44025752, used 155203688, increment 6383008
+linearPredictor: max memory 536870912, total allocated 199229440, free 44025752, used 155203688, increment 0
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 44025752, used 155203688, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 44025752, used 155203688, increment 0
+Initial loss: 9.43946599496794
+Initial test loss: 9.43946599496794
+Time since start: 101.167
+500: time = 6.000000 loss = 8.962995 testLoss 8.970057
+Resulting gain: 0.4764714873934217
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_6.csv
 RFBO_6 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 30267704, used 174204616, increment 4074712
+makeFeatures: max memory 536870912, total allocated 199229440, free 35726336, used 163503104, increment 8299416
 RFBO_6 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 28024824, used 176447496, increment 2242880
-linearPredictor: max memory 536870912, total allocated 204472320, free 27924200, used 176548120, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 27924200, used 176548120, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 27924200, used 176548120, increment 0
-Initial loss: 9.439545514668987
-Time since start: 104.736
-240: time = 2.444000 loss = 9.122560
-Resulting gain: 0.3169851002392523
+Density: max memory 536870912, total allocated 199229440, free 33575448, used 165653992, increment 2150888
+linearPredictor: max memory 536870912, total allocated 199229440, free 33474832, used 165754608, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 33474832, used 165754608, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 33474832, used 165754608, increment 0
+Initial loss: 9.43946599496794
+Time since start: 103.859
+260: time = 1.903000 loss = 9.139479
+Resulting gain: 0.2999873044936372
 RFBO_6 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 36118912, used 168353408, increment -8194712
+makeFeatures: max memory 536870912, total allocated 199229440, free 63213752, used 136015688, increment -29738920
 RFBO_6 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 34592672, used 169879648, increment 1526240
-linearPredictor: max memory 536870912, total allocated 204472320, free 34592672, used 169879648, increment 0
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 34592672, used 169879648, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 34592672, used 169879648, increment 0
-Initial loss: 9.439545514668987
-Time since start: 105.787
-160: time = 0.953000 loss = 9.414454
-Resulting gain: 0.025091675667688662
+Density: max memory 536870912, total allocated 199229440, free 61701752, used 137527688, increment 1512000
+linearPredictor: max memory 536870912, total allocated 199229440, free 61701752, used 137527688, increment 0
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 61701752, used 137527688, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 61701752, used 137527688, increment 0
+Initial loss: 9.43946599496794
+180: time = 0.786000 loss = 9.414420
+Resulting gain: 0.02504638509874546
 RFBO_6 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 47101744, used 157370576, increment -12509072
+makeFeatures: max memory 536870912, total allocated 199229440, free 42579792, used 156649648, increment 19121960
 RFBO_6 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 45562608, used 158909712, increment 1539136
-linearPredictor: max memory 536870912, total allocated 204472320, free 45461984, used 159010336, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 45461984, used 159010336, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 45461984, used 159010336, increment 0
-Initial loss: 9.439545514668987
-Time since start: 108.592
-380: time = 2.734000 loss = 9.321897
-Resulting gain: 0.11764804527404138
+Density: max memory 536870912, total allocated 199229440, free 41042232, used 158187208, increment 1537560
+linearPredictor: max memory 536870912, total allocated 199229440, free 40941616, used 158287824, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 40941616, used 158287824, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 40941616, used 158287824, increment 0
+Initial loss: 9.43946599496794
+Time since start: 107.936
+380: time = 3.121000 loss = 9.322026
+Resulting gain: 0.11744041718784892
 RFBO_6 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 43713008, used 160759312, increment 1748976
+makeFeatures: max memory 536870912, total allocated 199229440, free 47592400, used 151637040, increment -6650784
 RFBO_6 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 42662400, used 161809920, increment 1050608
-linearPredictor: max memory 536870912, total allocated 204472320, free 42561776, used 161910544, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 42561776, used 161910544, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 42561776, used 161910544, increment 0
-Initial loss: 9.439545514668987
-Time since start: 110.106
-300: time = 1.423000 loss = 9.264650
-Resulting gain: 0.17489516970043795
+Density: max memory 536870912, total allocated 199229440, free 46383904, used 152845536, increment 1208496
+linearPredictor: max memory 536870912, total allocated 199229440, free 46283288, used 152946152, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 46283288, used 152946152, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 46283288, used 152946152, increment 0
+Initial loss: 9.43946599496794
+Time since start: 110.341
+280: time = 2.224000 loss = 9.264660
+Resulting gain: 0.17480619959049548
 RFBO_6 response curves
-getSamples: max memory 536870912, total allocated 204472320, free 34258216, used 170214104, increment 8303560
+Time since start: 111.434
+getSamples: max memory 536870912, total allocated 199229440, free 41989328, used 157240112, increment 4293960
 Making features
-makeFeatures: max memory 536870912, total allocated 204472320, free 31554304, used 172918016, increment 2703912
+makeFeatures: max memory 536870912, total allocated 199229440, free 39029624, used 160199816, increment 2959704
 RFBO_7: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 204472320, free 34344168, used 170128152, increment -2789864
-linearPredictor: max memory 536870912, total allocated 204472320, free 34243544, used 170228776, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 204472320, free 34243544, used 170228776, increment 0
-Sequential: max memory 536870912, total allocated 204472320, free 34243544, used 170228776, increment 0
-Initial loss: 9.439545514668987
-Initial test loss: 9.439545514668987
-Time since start: 115.992
-500: time = 5.264000 loss = 8.949917 testLoss 8.950507
-Resulting gain: 0.4896288153718835
+Density: max memory 536870912, total allocated 199229440, free 32993640, used 166235800, increment 6035984
+linearPredictor: max memory 536870912, total allocated 199229440, free 32893008, used 166336432, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 199229440, free 32893008, used 166336432, increment 0
+Sequential: max memory 536870912, total allocated 199229440, free 32893008, used 166336432, increment 0
+Initial loss: 9.439625028047155
+Initial test loss: 9.439625028047155
+Time since start: 119.586
+500: time = 7.427000 loss = 8.965007 testLoss 8.964289
+Resulting gain: 0.47461791569686795
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_7.csv
 RFBO_7 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 72329760, used 145774048, increment -24454728
+makeFeatures: max memory 536870912, total allocated 281018368, free 64529440, used 216488928, increment 50152496
 RFBO_7 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 70088208, used 148015600, increment 2241552
-linearPredictor: max memory 536870912, total allocated 218103808, free 69802608, used 148301200, increment 285600
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 69802608, used 148301200, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 69802608, used 148301200, increment 0
-Initial loss: 9.439545514668987
-Time since start: 118.867
-300: time = 2.176000 loss = 9.123300
-Resulting gain: 0.31624575427260915
+Density: max memory 536870912, total allocated 281018368, free 62490008, used 218528360, increment 2039432
+linearPredictor: max memory 536870912, total allocated 281018368, free 62389376, used 218628992, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 62389376, used 218628992, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 62389376, used 218628992, increment 0
+Initial loss: 9.439625028047155
+Time since start: 122.718
+260: time = 2.397000 loss = 9.140037
+Resulting gain: 0.29958759966977766
 RFBO_7 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 140032056, used 78071752, increment -70229448
+makeFeatures: max memory 536870912, total allocated 281018368, free 61890384, used 219127984, increment 498992
 RFBO_7 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 138629272, used 79474536, increment 1402784
-linearPredictor: max memory 536870912, total allocated 218103808, free 138528648, used 79575160, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 138528648, used 79575160, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 138528648, used 79575160, increment 0
-Initial loss: 9.439545514668987
-180: time = 0.812000 loss = 9.414866
-Resulting gain: 0.024679841893389565
+Density: max memory 536870912, total allocated 281018368, free 60373344, used 220645024, increment 1517040
+linearPredictor: max memory 536870912, total allocated 281018368, free 60373344, used 220645024, increment 0
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 60373344, used 220645024, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 60373344, used 220645024, increment 0
+Initial loss: 9.439625028047155
+Time since start: 123.851
+180: time = 1.037000 loss = 9.414963
+Resulting gain: 0.024661735465299373
 RFBO_7 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 119086008, used 99017800, increment 19442640
+makeFeatures: max memory 536870912, total allocated 281018368, free 40702656, used 240315712, increment 19670688
 RFBO_7 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 117209728, used 100894080, increment 1876280
-linearPredictor: max memory 536870912, total allocated 218103808, free 117209728, used 100894080, increment 0
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 117209728, used 100894080, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 117209728, used 100894080, increment 0
-Initial loss: 9.439545514668987
-Time since start: 121.961
-320: time = 2.120000 loss = 9.321310
-Resulting gain: 0.11823567561199155
+Density: max memory 536870912, total allocated 281018368, free 39223088, used 241795280, increment 1479568
+linearPredictor: max memory 536870912, total allocated 281018368, free 39122456, used 241895912, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 39122456, used 241895912, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 39122456, used 241895912, increment 0
+Initial loss: 9.439625028047155
+Time since start: 126.779
+360: time = 2.817000 loss = 9.321725
+Resulting gain: 0.11790007780462375
 RFBO_7 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 119841504, used 98262304, increment -2631776
+makeFeatures: max memory 536870912, total allocated 281018368, free 45734344, used 235284024, increment -6611888
 RFBO_7 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 118891504, used 99212304, increment 950000
-linearPredictor: max memory 536870912, total allocated 218103808, free 118790880, used 99312928, increment 100624
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 118790880, used 99312928, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 118790880, used 99312928, increment 0
-Initial loss: 9.439545514668987
-Time since start: 123.424
-300: time = 1.378000 loss = 9.264029
-Resulting gain: 0.175516419699715
+Density: max memory 536870912, total allocated 281018368, free 44299936, used 236718432, increment 1434408
+linearPredictor: max memory 536870912, total allocated 281018368, free 44199304, used 236819064, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 44199304, used 236819064, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 44199304, used 236819064, increment 0
+Initial loss: 9.439625028047155
+Time since start: 128.442
+320: time = 1.541000 loss = 9.264272
+Resulting gain: 0.1753527268242845
 RFBO_7 response curves
-getSamples: max memory 536870912, total allocated 218103808, free 70657008, used 147446800, increment 48133872
+getSamples: max memory 536870912, total allocated 281018368, free 37154960, used 243863408, increment 7044344
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 67901208, used 150202600, increment 2755800
+makeFeatures: max memory 536870912, total allocated 281018368, free 73061536, used 207956832, increment -35906576
 RFBO_8: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 61746160, used 156357648, increment 6155048
-linearPredictor: max memory 536870912, total allocated 218103808, free 61645528, used 156458280, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 61645528, used 156458280, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 61645528, used 156458280, increment 0
-Initial loss: 9.439625028047155
-Initial test loss: 9.439625028047155
-Time since start: 129.214
-500: time = 5.183000 loss = 8.951397 testLoss 8.936720
-Resulting gain: 0.48822849437309834
+Density: max memory 536870912, total allocated 281018368, free 66592056, used 214426312, increment 6469480
+linearPredictor: max memory 536870912, total allocated 281018368, free 66592056, used 214426312, increment 0
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 66592056, used 214426312, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 66592056, used 214426312, increment 0
+Initial loss: 9.43946599496794
+Initial test loss: 9.43946599496794
+Time since start: 135.511
+500: time = 6.164000 loss = 8.966084 testLoss 8.950828
+Resulting gain: 0.47338166941299775
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_8.csv
 RFBO_8 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 106145496, used 111958312, increment -44499968
+makeFeatures: max memory 536870912, total allocated 281018368, free 40812496, used 240205872, increment 25779560
 RFBO_8 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 104064024, used 114039784, increment 2081472
-linearPredictor: max memory 536870912, total allocated 218103808, free 103963392, used 114140416, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 103963392, used 114140416, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 103963392, used 114140416, increment 0
-Initial loss: 9.439625028047155
-Time since start: 132.277
-280: time = 2.490000 loss = 9.127938
-Resulting gain: 0.3116868843539624
+Density: max memory 536870912, total allocated 281018368, free 38606872, used 242411496, increment 2205624
+linearPredictor: max memory 536870912, total allocated 281018368, free 38506256, used 242512112, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 38506256, used 242512112, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 38506256, used 242512112, increment 0
+Initial loss: 9.43946599496794
+Time since start: 138.091
+260: time = 1.985000 loss = 9.143839
+Resulting gain: 0.29562665404585076
 RFBO_8 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 109366536, used 108737272, increment -5403144
+makeFeatures: max memory 536870912, total allocated 281018368, free 30744416, used 250273952, increment 7761840
 RFBO_8 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 107999200, used 110104608, increment 1367336
-linearPredictor: max memory 536870912, total allocated 218103808, free 107999200, used 110104608, increment 0
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 107999200, used 110104608, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 107999200, used 110104608, increment 0
-Initial loss: 9.439625028047155
-160: time = 0.752000 loss = 9.415013
-Resulting gain: 0.024612126334121243
+Density: max memory 536870912, total allocated 281018368, free 40241408, used 240776960, increment -9496992
+linearPredictor: max memory 536870912, total allocated 281018368, free 40140792, used 240877576, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 40140792, used 240877576, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 40140792, used 240877576, increment 0
+Initial loss: 9.43946599496794
+160: time = 0.723000 loss = 9.414877
+Resulting gain: 0.02458898801682352
 RFBO_8 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 90104104, used 127999704, increment 17895096
+makeFeatures: max memory 536870912, total allocated 281018368, free 32299760, used 248718608, increment 7841032
 RFBO_8 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 88602592, used 129501216, increment 1501512
-linearPredictor: max memory 536870912, total allocated 218103808, free 88501960, used 129601848, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 88501960, used 129601848, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 88501960, used 129601848, increment 0
-Initial loss: 9.439625028047155
-Time since start: 135.343
-300: time = 2.176000 loss = 9.324077
-Resulting gain: 0.1155477637411888
+Density: max memory 536870912, total allocated 281018368, free 30761312, used 250257056, increment 1538448
+linearPredictor: max memory 536870912, total allocated 281018368, free 30660696, used 250357672, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 30660696, used 250357672, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 30660696, used 250357672, increment 0
+Initial loss: 9.43946599496794
+Time since start: 141.162
+300: time = 2.193000 loss = 9.324087
+Resulting gain: 0.11537943584473531
 RFBO_8 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 96835240, used 121268568, increment -8333280
+makeFeatures: max memory 536870912, total allocated 281018368, free 25330600, used 255687768, increment 5330096
 RFBO_8 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 95806208, used 122297600, increment 1029032
-linearPredictor: max memory 536870912, total allocated 218103808, free 95705576, used 122398232, increment 100632
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 95705576, used 122398232, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 95705576, used 122398232, increment 0
-Initial loss: 9.439625028047155
-Time since start: 136.847
-320: time = 1.433000 loss = 9.268302
-Resulting gain: 0.1713229624924839
+Density: max memory 536870912, total allocated 281018368, free 23979152, used 257039216, increment 1351448
+linearPredictor: max memory 536870912, total allocated 281018368, free 23878536, used 257139832, increment 100616
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 23878536, used 257139832, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 23878536, used 257139832, increment 0
+Initial loss: 9.43946599496794
+Time since start: 142.883
+400: time = 1.643000 loss = 9.268151
+Resulting gain: 0.1713145857570595
 RFBO_8 response curves
-getSamples: max memory 536870912, total allocated 218103808, free 45575192, used 172528616, increment 50130384
+getSamples: max memory 536870912, total allocated 281018368, free 76446152, used 204572216, increment -52567616
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 42835120, used 175268688, increment 2740072
+makeFeatures: max memory 536870912, total allocated 281018368, free 73792504, used 207225864, increment 2653648
 RFBO_9: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 36660248, used 181443560, increment 6174872
-linearPredictor: max memory 536870912, total allocated 218103808, free 36660248, used 181443560, increment 0
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 36660248, used 181443560, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 36660248, used 181443560, increment 0
-Initial loss: 9.439704535103449
-Initial test loss: 9.439704535103449
-Time since start: 142.638
-500: time = 5.173000 loss = 8.950424 testLoss 8.946611
-Resulting gain: 0.48928030145255086
+Density: max memory 536870912, total allocated 281018368, free 106178440, used 174839928, increment -32385936
+linearPredictor: max memory 536870912, total allocated 281018368, free 106077808, used 174940560, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 105871144, used 175147224, increment 206664
+Sequential: max memory 536870912, total allocated 281018368, free 105871144, used 175147224, increment 0
+Initial loss: 9.439625028047155
+Initial test loss: 9.439625028047155
+Time since start: 149.295
+500: time = 5.544000 loss = 8.964954 testLoss 8.969454
+Resulting gain: 0.4746705755586582
 Projecting...
 Writing file analysis/maxent/KPC/ert/RFBO_9.csv
 RFBO_9 response curves
 Response curve: only Ert
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 27988752, used 190115056, increment 8671496
+makeFeatures: max memory 536870912, total allocated 281018368, free 114255952, used 166762416, increment -8384808
 RFBO_9 Ert: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 25786456, used 192317352, increment 2202296
-linearPredictor: max memory 536870912, total allocated 218103808, free 25685816, used 192417992, increment 100640
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 25685816, used 192417992, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 25685816, used 192417992, increment 0
-Initial loss: 9.439704535103449
-Time since start: 145.123
-280: time = 1.931000 loss = 9.128801
-Resulting gain: 0.3109038805360633
+Density: max memory 536870912, total allocated 281018368, free 112045128, used 168973240, increment 2210824
+linearPredictor: max memory 536870912, total allocated 281018368, free 111944496, used 169073872, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 111944496, used 169073872, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 111944496, used 169073872, increment 0
+Initial loss: 9.439625028047155
+Time since start: 152.329
+300: time = 2.421000 loss = 9.144527
+Resulting gain: 0.295098469926387
 RFBO_9 response curves
 Response curve: only anom
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 39470944, used 178632864, increment -13785128
+makeFeatures: max memory 536870912, total allocated 281018368, free 193265304, used 87753064, increment -81320808
 RFBO_9 anom: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 38380080, used 179723728, increment 1090864
-linearPredictor: max memory 536870912, total allocated 218103808, free 38279440, used 179824368, increment 100640
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 38279440, used 179824368, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 38279440, used 179824368, increment 0
-Initial loss: 9.439704535103449
-160: time = 0.781000 loss = 9.414940
-Resulting gain: 0.02476464951656432
+Density: max memory 536870912, total allocated 281018368, free 191845832, used 89172536, increment 1419472
+linearPredictor: max memory 536870912, total allocated 281018368, free 191745200, used 89273168, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 191745200, used 89273168, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 191745200, used 89273168, increment 0
+Initial loss: 9.439625028047155
+160: time = 0.788000 loss = 9.414884
+Resulting gain: 0.024741306862775758
 RFBO_9 response curves
 Response curve: only bathy
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 91288680, used 126815128, increment -53009240
+makeFeatures: max memory 536870912, total allocated 281018368, free 173984264, used 107034104, increment 17760936
 RFBO_9 bathy: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 89749544, used 128354264, increment 1539136
-linearPredictor: max memory 536870912, total allocated 218103808, free 89749544, used 128354264, increment 0
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 89749544, used 128354264, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 89749544, used 128354264, increment 0
-Initial loss: 9.439704535103449
-Time since start: 148.261
-300: time = 2.206000 loss = 9.327256
-Resulting gain: 0.11244878662574642
+Density: max memory 536870912, total allocated 281018368, free 172445128, used 108573240, increment 1539136
+linearPredictor: max memory 536870912, total allocated 281018368, free 172344496, used 108673872, increment 100632
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 172344496, used 108673872, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 172344496, used 108673872, increment 0
+Initial loss: 9.439625028047155
+Time since start: 156.393
+420: time = 3.099000 loss = 9.327281
+Resulting gain: 0.11234369461728555
 RFBO_9 response curves
 Response curve: only sst
 Making features
-makeFeatures: max memory 536870912, total allocated 218103808, free 87597128, used 130506680, increment 2152416
+makeFeatures: max memory 536870912, total allocated 281018368, free 55388880, used 225629488, increment 116955616
 RFBO_9 sst: 
 Regularization values: linear/quadratic/product: 0.050, categorical: 0.250, threshold: 1.000, hinge: 0.500
 2759 samples
-Density: max memory 536870912, total allocated 218103808, free 86347584, used 131756224, increment 1249544
-linearPredictor: max memory 536870912, total allocated 218103808, free 86246944, used 131856864, increment 100640
-FeaturedSpace: max memory 536870912, total allocated 218103808, free 86246944, used 131856864, increment 0
-Sequential: max memory 536870912, total allocated 218103808, free 86246944, used 131856864, increment 0
-Initial loss: 9.439704535103449
-Time since start: 150.22
-420: time = 1.890000 loss = 9.257695
-Resulting gain: 0.18200992011591133
+Density: max memory 536870912, total allocated 281018368, free 53924896, used 227093472, increment 1463984
+linearPredictor: max memory 536870912, total allocated 281018368, free 53924896, used 227093472, increment 0
+FeaturedSpace: max memory 536870912, total allocated 281018368, free 53924896, used 227093472, increment 0
+Sequential: max memory 536870912, total allocated 281018368, free 53924896, used 227093472, increment 0
+Initial loss: 9.439625028047155
+Time since start: 158.047
+380: time = 1.550000 loss = 9.257737
+Resulting gain: 0.18188772036284284
 RFBO_9 response curves
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 81128656, used 136975152, increment 5118288
+readGrid: max memory 536870912, total allocated 281018368, free 99285696, used 181732672, increment -45360800
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 35107080, used 182996728, increment 46021576
+readGrid: max memory 536870912, total allocated 281018368, free 157503808, used 123514560, increment -58218112
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 46197648, used 171906160, increment -11090568
+readGrid: max memory 536870912, total allocated 281018368, free 58408680, used 222609688, increment 99095128
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 57123136, used 160980672, increment -10925488
+readGrid: max memory 536870912, total allocated 281018368, free 119376384, used 161641984, increment -60967704
+Time since start: 159.08
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 67663840, used 150439968, increment -10540704
+readGrid: max memory 536870912, total allocated 281018368, free 173950032, used 107068336, increment -54573648
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 78662880, used 139440928, increment -10999040
+readGrid: max memory 536870912, total allocated 281018368, free 74335312, used 206683056, increment 99614720
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 34384672, used 183719136, increment 44278208
-Time since start: 151.279
+readGrid: max memory 536870912, total allocated 281018368, free 131915832, used 149102536, increment -57580520
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 218103808, free 44340512, used 173763296, increment -9955840
+readGrid: max memory 536870912, total allocated 281018368, free 188744192, used 92274176, increment -56828360
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 256901120, free 108690720, used 148210400, increment -25552896
+readGrid: max memory 536870912, total allocated 281018368, free 89655808, used 191362560, increment 99088384
 Reading file kpc_background.csv
-readGrid: max memory 536870912, total allocated 256901120, free 80872080, used 176029040, increment 27818640
+readGrid: max memory 536870912, total allocated 281018368, free 145174608, used 135843760, increment -55518800
 Creating average grid, stddev grid etc.
 Writing file analysis/maxent/KPC/ert/RFBO_avg.csv
 Writing file analysis/maxent/KPC/ert/RFBO_stddev.csv
 Writing file analysis/maxent/KPC/ert/RFBO_min.csv
 Writing file analysis/maxent/KPC/ert/RFBO_max.csv
 Writing file analysis/maxent/KPC/ert/RFBO_median.csv
+Time since start: 160.367
 RFBO average response curves
-Time since start: 153.221
+Time since start: 161.429
 Ending
