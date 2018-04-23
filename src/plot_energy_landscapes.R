@@ -35,26 +35,30 @@ plot_r <- function(r, origin, dir) {
     scale_fill_gradientn(colors = rev(colorRamps::matlab.like(4)),
                          na.value = '#00000000',
                          limits = 0:1) +
-    annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +
     geom_polygon(aes(long, lat, group = group),
                  fortify(hi_land2),
                  inherit.aes = FALSE) +
+    annotate(geom = 'point', origin[1], origin[2], 
+             color = 'white',
+             shape = 13,
+             size = 2) +
     coord_fixed() +
     scale_x_continuous(labels = degree_labels,
-                       breaks = function(lim) seq(ceiling(lim[1]), floor(lim[2]), by = 1)) +
-    scale_y_continuous(labels = degree_labels) +
+                       breaks = function(lim) seq(ceiling(lim[1]), floor(lim[2]), by = 2)) +
+    scale_y_continuous(labels = degree_labels,
+                       breaks = function(lim) seq(ceiling(lim[1]), floor(lim[2]), by = 2)) +
     labs(x = NULL, y = NULL, fill = fill_lab) +
     theme_bw()
 }
 
-# Plot each dir, each location for 2016-06-15
+# Plot each dir, each location for 2016-06-05
 foreach(col_loc = iterators::iter(colonies, by = 'row')) %do%{
   foreach(dir = c('out', 'in', 'rt')) %do% {
-    p <- sprintf('data/out/EnergyLandscapes/all/%s_20160615_%s.tif', 
+    p <- sprintf('data/out/EnergyLandscapes/all/%s_20160605_%s.tif', 
                  col_loc$label, dir) %>%
       raster %>%
       plot_r(as.numeric(col_loc[1,3:2]), dir)
-    ggsave(sprintf('analysis/figures/EnergyLandscapes/%s_20160615_%s.png', 
+    ggsave(sprintf('analysis/figures/EnergyLandscapes/%s_20160605_%s.png', 
                    col_loc$label, dir),
            height = 3,
            width = 3.2,

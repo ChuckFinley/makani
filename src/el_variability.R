@@ -1,18 +1,18 @@
 # Energy landscape variability across colonies
-kpc_rt <- dir('data/out/EnergyLandscapes2/all/', 
+kpc_rt <- dir('data/out/EnergyLandscapes/all/', 
               pattern = 'KPC_.*_rt.tif', 
               full.names = TRUE) %>%
   lapply(raster, crs = hi_aea_prj) %>%
   lapply(projectRaster, crs = wgs84_prj)
-dates <- dir('data/out/EnergyLandscapes2/all/', 
+dates <- dir('data/out/EnergyLandscapes/all/', 
              pattern = 'KPC_.*_rt.tif', 
              full.names = TRUE) %>% 
   sub('.*KPC_(.*)_rt.tif', '\\1', .)
-leh_rt <- sprintf('data/out/EnergyLandscapes2/all/LEH_%s_rt.tif', 
+leh_rt <- sprintf('data/out/EnergyLandscapes/all/LEH_%s_rt.tif', 
                   dates) %>%
   lapply(raster, crs = hi_aea_prj) %>%
   lapply(projectRaster, crs = wgs84_prj)
-mcb_rt <- sprintf('data/out/EnergyLandscapes2/all/MCB_%s_rt.tif', 
+mcb_rt <- sprintf('data/out/EnergyLandscapes/all/MCB_%s_rt.tif', 
                   dates) %>%
   lapply(raster, crs = hi_aea_prj) %>%
   lapply(projectRaster, crs = wgs84_prj)
@@ -26,14 +26,14 @@ mcb_mean <- calc(mcb_stack, fun = mean)
 range(cellStats(kpc_mean, range), 
       cellStats(leh_mean, range), 
       cellStats(mcb_mean, range))
-# [1] 0.04217044 0.89535627
-kpc_sd <- calc(kpc_stack, fun = sd)
-leh_sd <- calc(leh_stack, fun = sd)
-mcb_sd <- calc(mcb_stack, fun = sd)
+# [1] 0.00279044 0.99888639
+kpc_sd <- calc(kpc_stack, fun = sd, na.rm = TRUE)
+leh_sd <- calc(leh_stack, fun = sd, na.rm = TRUE)
+mcb_sd <- calc(mcb_stack, fun = sd, na.rm = TRUE)
 range(cellStats(kpc_sd, range), 
       cellStats(leh_sd, range), 
       cellStats(mcb_sd, range))
-# [1] 0.07811175 0.27136536
+# [1] 0.0000374045 0.0316448408
 
 plot_r <- function(r, origin, stat) {
   # Utility function for plotting a raster in ggplot
@@ -54,12 +54,13 @@ plot_r <- function(r, origin, stat) {
     crop(r)
   
   fill_lab <- bquote(.(stat)(italic(E[rt])))
-  fill_lim <- if(stat == 'mean') c(0, 1) else c(0.07, 0.28)
-  
+  fill_lim <- if(stat == 'mean') c(0, 1) else c(0, 0.03)
+  fill_cols <- if(stat == 'mean') rev(colorRamps::matlab.like(4)) else colorRamps::matlab.like(4)
+  #browser()
   ggplot(fortify_raster(r),
          aes(x, y, fill = val)) +
     geom_raster() +
-    scale_fill_gradientn(colors = rev(colorRamps::matlab.like(4)),
+    scale_fill_gradientn(colors = fill_cols,
                          na.value = '#00000000',
                          limits = fill_lim) +
     annotate(geom = 'point', origin[1], origin[2], color = 'black', size = 4) +

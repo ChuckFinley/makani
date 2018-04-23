@@ -4,7 +4,8 @@ library(raster)
 
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
 hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land')
+hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land') %>%
+  spTransform(wgs84_prj)
 daily_wind <- function(t, uv) {
   wind_path <- sprintf('data/wind/WRF_HI/%i_WRF_Hawaii_Regional_Atmospheric_Model_best.ncd.nc',
                        year(t))
@@ -38,10 +39,6 @@ daily_wind <- function(t, uv) {
            ymn = min(lat_wind),
            ymx = max(lat_wind),
            crs = wgs84_prj)
-  
-  hi_aea_template <- projectExtent(wgs84_wind, hi_aea_prj)
-  res(hi_aea_template) <- 6e3
-  projectRaster(wgs84_wind, hi_aea_template)
 }
 
 plot_wind <- function(d) {
@@ -73,7 +70,7 @@ v <- lapply(kpc_dates, daily_wind, 'v')
 u_mean <- mean(stack(u))
 v_mean <- mean(stack(v))
 template <- u_mean
-res(template) <- 40e3
+res(template) <- 1/4
 u2 <- resample(u_mean, template)
 v2 <- resample(v_mean, template)
 fortify_raster <- function(r) {
@@ -85,8 +82,26 @@ fortify_raster <- function(r) {
 uv <- left_join(fortify_raster(u2), fortify_raster(v2), by = 'i') %>% 
   transmute(i, x = x.x, y = y.x, u = val.x, v = val.y)
 
+degree_labels <- function(breaks) {
+  breaks_char <- as.character(breaks)
+  do.call(expression, lapply(breaks_char, function(b) bquote(.(b)*degree)))
+}
+
 ggplot(uv, aes(x, y)) + 
-  geom_segment(aes(xend = x + 5e3*u, yend = y + 5e3*v), 
+  geom_segment(aes(xend = x + u / 30, yend = y + v / 30), 
                arrow = arrow(length = unit(0.1,"cm"))) + 
   geom_polygon(aes(long, lat, group = group), 
-               fortify(spTransform(hi_land, hi_aea_prj)), inherit.aes = FALSE)
+               fortify(hi_land), inherit.aes = FALSE) +
+  coord_fixed() +
+  theme_bw() +
+  scale_x_continuous(name = '',
+                     labels = degree_labels,
+                     limits = c(-161, -155),
+                     breaks = function(lim) seq(ceiling(lim[1]), 
+                                                floor(lim[2]), by = 2)) +
+  scale_y_continuous(name = '',
+                     labels = degree_labels,
+                     limits = c(20, 24),
+                     breaks = function(lim) seq(ceiling(lim[1]), 
+                                                floor(lim[2]), by = 2))
+  
