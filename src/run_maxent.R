@@ -1,12 +1,12 @@
 # Fit models
 ## Suitability only
-system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/envonly togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves')
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/envonly togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata')
 ## D2C
-system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/d2c togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves')
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/d2c togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata')
 ## UD
-system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/crw togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C outputformat=raw replicates=10 redoifexists autorun responsecurves')
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/crw togglelayerselected=LocDate togglelayerselected=Ert togglelayerselected=D2C outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata')
 ## Ert
-system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/ert togglelayerselected=LocDate togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves')
+system('java -mx512m -jar tools/maxent/maxent.jar environmentallayers=data/out/Presences/kpc_background.csv samplesfile=data/out/Presences/rfbo_accessible.csv outputdirectory=analysis/maxent/KPC/ert togglelayerselected=LocDate togglelayerselected=D2C togglelayerselected=UD outputformat=raw replicates=10 redoifexists autorun responsecurves writeplotdata')
 
 # To project a model to a new environment
 project_model <- function(model, loc, depsess) {
@@ -63,7 +63,7 @@ orig_fit <- data.frame(Model = factor(1:4,
                                                  'D2C',
                                                  'UD',
                                                  'EL')),
-                       AUC = c(.697, .770, .760, .755))
+                       AUC = c(.699, .776, .765, .776))
 
 model_assessment %>%
   mutate(Model = factor(Model, 
@@ -80,3 +80,8 @@ model_assessment %>%
                 linetype = 'dotted') +
   theme_bw() +
   facet_wrap(~ Location)
+
+ggsave('analysis/figures/transferability.png',
+       height = 3,
+       width = 4.5,
+       units = 'in')
