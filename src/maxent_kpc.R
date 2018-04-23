@@ -115,40 +115,44 @@ rfbo_env <- rfbo_sample %>%
 extract_el <- function(x, y, t, col) {
   if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
     stop('invalid colony')
-  raster_path <- sprintf('data/out/EnergyLandscapes/all/%s_%s_rt.tif',
-                         col,
-                         format(t, '%Y%m%d'))
-  if(!all(file.exists(raster_path)))
-    stop('no raster exists')
   wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
   hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-  mapply(FUN = function(x, y, path) {
-    r <- raster(path, crs = hi_aea_prj) %>%
-      projectRaster(crs = wgs84_prj)
-    if(!between(x, extent(r)[1], extent(r)[2]) ||
-       !between(y, extent(r)[3], extent(r)[4]))
-      stop('point out of extent')
-    raster::extract(r, cellFromXY(r, c(x, y)))
-  },
-  x, y, raster_path)
+  extract_el2 <- function(x, y, t, col) {
+    sprintf('data/out/EnergyLandscapes/all/%s_%s_rt.tif',
+                 first(col),
+                 format(first(t), '%Y%m%d')) %>%
+      raster(crs = hi_aea_prj) %>%
+      projectRaster(crs = wgs84_prj) %>%
+      raster::extract(cbind(x, y))
+  }
+  result <- data.frame(x = x, y = y, t = t, col = col) %>%
+    mutate(orig_order = row_number()) %>%
+    group_by(col, t) %>%
+    do(data.frame(orig_order = .$orig_order,
+                  el = extract_el2(.$x, .$y, .$t, .$col))) %>%
+    ungroup %>%
+    arrange(orig_order)
+  result$el
 }
 extract_ud <- function(x, y, col) {
   if(!all(col %in% c('KPC', 'LEH', 'MCB'))) 
     stop('invalid colony')
-  raster_path <- sprintf('data/out/CyberBirds/%s_CRW_UD.tif', col)
-  if(!any(file.exists(raster_path)))
-    stop('no raster exists')
   wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
   hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-  mapply(FUN = function(x, y, path) {
-    r <- raster(path) %>%
-      projectRaster(crs = wgs84_prj)
-    if(!between(x, extent(r)[1], extent(r)[2]) ||
-       !between(y, extent(r)[3], extent(r)[4]))
-      stop('point out of extent')
-    raster::extract(r, cellFromXY(r, c(x, y)))
-  },
-  x, y, raster_path)
+  extract_ud2 <- function(x, y, col) {
+    sprintf('data/out/CyberBirds/%s_CRW_UD.tif', first(col)) %>%
+      raster %>%
+      projectRaster(crs = wgs84_prj) %>%
+      raster::extract(cbind(x, y))
+  }
+  result <- data.frame(x = x, y = y, col = col) %>%
+    mutate(orig_order = row_number()) %>%
+    group_by(col) %>%
+    do(data.frame(orig_order = .$orig_order,
+                  ud = extract_ud2(.$x, .$y, .$col))) %>%
+    ungroup %>%
+    arrange(orig_order)
+  result$ud
 }
 rfbo_acc <- mutate(rfbo_env,
                    Ert = extract_el(Longitude, Latitude, LocDate, 'KPC'),
@@ -177,5 +181,4 @@ background_acc <- mutate(background_env,
                                                   kpc_col),
                          UD = extract_ud(Longitude, Latitude, 'KPC')) %>%
   na.omit
-
 readr::write_csv(background_acc, 'data/out/Presences/kpc_background.csv')
