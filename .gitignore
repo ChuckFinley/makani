@@ -3,3 +3,5 @@ MHI_GPS_TDR.sqlite
 .Rhistory
 src/*_cache/*
 data/*
+
+*.history
