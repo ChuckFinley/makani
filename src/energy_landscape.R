@@ -45,46 +45,41 @@ create_grid <- function(origin, radius, res) {
 }
 
 # Connect neighboring grid points
-connect_neighbors <- function(grid_coords) {
-  neighbors <- function(i, j) {
-    # left-to-right, top-to-bottom
-    x_8 <- c(-1, 0, 1, -1, 1, -1, 0 , 1)
-    y_8 <- c(1, 1, 1, 0, 0, -1, -1, -1)
-    if((j %% 2) == 0) {
-      x_6 <- x_8[c(-3, -8)]
-      y_6 <- y_8[c(-3, -8)]
-    } else {
-      x_6 <- x_8[c(-1, -6)]
-      y_6 <- y_8[c(-1, -6)]
-    }
-    data.frame(i = i,
-               j = j,
-               i2 = i + x_6,
-               j2 = j + y_6)
+connect_neighbors <- function(grid_coords, res) {
+  grid_dist <- function(id1, id2) {
+    id1 <- as.numeric(id1)
+    id2 <- as.numeric(id2)
+    with(grid_coords, sqrt((x[id1] - x[id2])^2 + (y[id1] - y[id2])^2))
   }
-  
-  grid_coords2 <- rename(grid_coords, id2 = id, x2 = x, y2 = y)
-  grid_coords %>%
-    rowwise %>%
-    do(neighbors(.$i, .$j)) %>%
-    ungroup %>%
-    right_join(grid_coords, by = c('i' = 'i', 'j' = 'j')) %>%
-    right_join(grid_coords2, by = c('i2' = 'i', 'j2' = 'j')) %>%
-    mutate(azimuth_out = atan2(y2 - y, x2 - x),
-           azimuth_in = atan2(y - y2, x - x2),
-           dist = sqrt((x2 - x)^2 + (y2 - y)^2))
+  neighbor_dist <- sqrt(2 * res^2 - 2 * res^2 * cos(2 * pi / 3))
+  grid_coords2 <- rename(grid_coords, id2 = id, x2 = x, y2 = y, i2 = i, j2 = j)
+  tol <- 1.1
+  expand.grid(id = grid_coords$id,
+              id2 = grid_coords$id,
+              stringsAsFactors = FALSE) %>%
+    mutate(dist = grid_dist(id, id2)) %>% 
+    filter(dist <= neighbor_dist * tol,
+           dist > 0) %>% 
+    left_join(grid_coords) %>% 
+    left_join(grid_coords2)
 }
 
 # Annotate connections with wind conditions and trip predictions
 annotate_wind <- function(connections, u, v, e_mod, barriers) {
   extract_line <- function(x1, y1, x2, y2, r) {
     len <- sqrt((x2 - x1)^2 + (y2 - y1)^2)
-    npoints <- len / xres(r) + 1
-    cbind(x1, x2, y1, y2, npoints) %>% 
+    npoints <- ceiling(len / xres(r) + 1)
+    interp_seg <- function(x1, y1, x2, y2, n) {
+      list(x = seq(x1, x2, length.out = n),
+           y = seq(y1, y2, length.out = n))
+    }
+    cbind(x1, y1, x2, y2, npoints) %>% 
       apply(1, function(row) {
-        ptlist <- approx(row[1:2], row[3:4], n = row[5])
-        raster::extract(r, cbind(ptlist$x, ptlist$y)) %>%
-          mean(na.rm = TRUE)
+        tryCatch({
+          ptlist <- interp_seg(row[1], row[2], row[3], row[4], row[5])
+          raster::extract(r, cbind(ptlist$x, ptlist$y)) %>%
+            mean(na.rm = TRUE)
+        }, error = function(e) browser())
       })
   }
   
@@ -130,7 +125,7 @@ annotate_wind <- function(connections, u, v, e_mod, barriers) {
            mean_v = extract_line(x, y, x2, y2, v),
            angle = vector_angle(x2 - x, y2 - y, mean_u, mean_v),
            mag = sqrt(mean_u^2 + mean_v^2),
-           energy = e_mod(angle, mag)) %>%
+           energy = e_mod(angle, mag, dist)) %>% 
     filter(!is.nan(mean_u),
            !is.nan(mean_v))
 }
@@ -196,7 +191,7 @@ rescale <- function(rasters) {
 energy_landscape <- function(origin, radius, res, u, v, 
                              energy_mod, barriers = NULL) {
   grid_coords <- create_grid(origin, radius, res)
-  connections <- connect_neighbors(grid_coords)
+  connections <- connect_neighbors(grid_coords, res)
   wind_conns <- annotate_wind(connections, u, v, energy_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
   el_raster <- interp_grid(grid_costs, origin, radius, res, barriers)
