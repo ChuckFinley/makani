@@ -7,18 +7,17 @@ source('src/energy_landscape.R')
 # Movement models
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
-energy_mod <- function(a, m) {
-  mean_spd <- 11.7 # m/s
+energy_mod <- function(a, m, d) {
   spd <- predict(SgTCModel, 
                  re.form = NA,
                  newdata = data.frame(Tailwind = m * cos(a)))
-  odba <- predict(oam, 
+  flap <- predict(fam, 
                   newdata = data.frame(WindAngle = a,
                                        WindSpd = m,
                                        DeployID = 1145),
                   exclude = 's(DeployID)',
                   type = 'response')
-  odba * mean_spd / spd
+  flap * d / spd
 }
 
 # Spatial data
@@ -121,15 +120,15 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
       file_name <- function(loc, d, dir) {
         paste(loc, format(d, '%Y%m%d'), dir, sep = '_')
       }
-      raster_path1 <- file.path('data/out/EnergyLandscapes/',
+      raster_path1 <- file.path('data/out/EnergyLandscapesFR/',
                                 sprintf('%s/Rasters/%s/',
                                         col_name, dir_name),
                                 sprintf('%s.tif', 
                                         file_name(col_name, d, dir)))
-      raster_path2 <- file.path('data/out/EnergyLandscapes/all',
+      raster_path2 <- file.path('data/out/EnergyLandscapesFR/all',
                                 sprintf('%s.tif', 
                                         file_name(col_name, d, dir)))
-      figure_path <- file.path('data/out/EnergyLandscapes/',
+      figure_path <- file.path('data/out/EnergyLandscapesFR/',
                                sprintf('%s/Figures/%s/',
                                        col_name, dir_name),
                                sprintf('%s.png', 
