@@ -66,7 +66,8 @@ plotPR(tracksHMM)
 # Simulate tracks
 sim_tracks <- simData(nbAnimals = 100, 
                       model = tracksHMM, 
-                      obsPerAnimal = c(340, 1058)) %>%
+                      obsPerAnimal = c(340, 1058),
+                      states = TRUE) %>%
   mutate(ID = factor(ID))
 
 colony_crw_ud <- function(crw, col_coords, radius, resolution) {
@@ -86,7 +87,7 @@ colony_crw_ud <- function(crw, col_coords, radius, resolution) {
     # Project to Hawaii Albers Equal Area Conic
     spTransform(hi_aea_prj)
   crw_ud <- adehabitatHR::kernelUD(crw_sp)
-  # Crop, re-sample, rescale
+  # Crop, re-sample, rescale, mask
   col_extent <- SpatialPoints(matrix(col_coords, ncol = 2),
                               proj4string = wgs84_prj) %>%
     spTransform(hi_aea_prj) %>%
@@ -98,17 +99,46 @@ colony_crw_ud <- function(crw, col_coords, radius, resolution) {
     r_max = cellStats(r, "max")
     (r - r_min) / (r_max - r_min)
   }
+  col_mask <- rasterize(col_extent, col_template)
   raster(crw_ud) %>%
     resample(col_template) %>%
     crop(col_extent) %>%
-    rescale
+    rescale %>%
+    mask(col_mask) 
 }
 
-crw_res <- res(raster('data/out/EnergyLandscapes/KPC/20160528_in.tif'))
-kpc_ud <- colony_crw_ud(sim_tracks, c(-159.40, 22.23), 250e3, crw_res)
-ggplot(fortify_raster(kpc_crw_ud), aes(x, y, fill = val)) + 
+crw_template <- raster('data/out/EnergyLandscapes/all/KPC_20160528_in.tif')
+kpc_ud <- colony_crw_ud(sim_tracks, c(-159.40, 22.23), 250e3, res(crw_template))
+kpc_origin <- SpatialPoints(cbind(-159.40, 22.23), proj4string = wgs84_prj) %>%
+  spTransform(hi_aea_prj)
+kpc_mask <- kpc_origin %>%
+  rgeos::gBuffer(width = 250e3) %>%
+  rasterize(kpc_ud)
+kpc_ud %>% 
+  distanceFromPoints(kpc_origin) %>%
+  rescale %>%
+  mask(kpc_mask) %>%
+  rasterToPoints %>% 
+  data.frame %>% 
+  ggplot(aes(x, y, fill = layer)) + 
   geom_raster() +
-  scale_fill_gradientn(colors = colorRamps::matlab.like(4))
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(fill = 'D2C') +
+  coord_fixed()
+kpc_ud %>%
+  rasterToPoints %>% 
+  data.frame %>%
+  ggplot(aes(x, y, fill = ud)) + 
+  geom_raster() +
+  scale_fill_gradientn(colors = colorRamps::matlab.like(4)) +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(fill = 'UD') +
+  coord_fixed()
 writeRaster(kpc_ud, 'data/out/CyberBirds/KPC_CRW_UD.tif', 'GTiff', overwrite = TRUE)
 
 leh_ud <- colony_crw_ud(sim_tracks, c(-160.1, 22.0), 250e3, crw_res)

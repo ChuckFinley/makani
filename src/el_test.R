@@ -19,20 +19,18 @@ wind_v <- matrix(seq(from = 5, to = -10, length.out = 100), nrow = 10) %>%
 ## Movement models
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
-energy_mod <- function(a, m) {
-  predict(oam, 
-          newdata = data.frame(WindAngle = a,
-                               WindSpd = m,
-                               DeployID = 1145),
-          exclude = 's(DeployID)',
-          type = 'response')
-}
-dur_mod <- function(a, m, d) {
-  t <- a * cos(a)
+energy_mod <- function(a, m, d) {
+  mean_spd <- 11.7 # m/s
   spd <- predict(SgTCModel, 
                  re.form = NA,
-                 newdata = data.frame(Tailwind = t))
-  d / spd
+                 newdata = data.frame(Tailwind = m * cos(a)))
+  odba <- predict(oam, 
+                  newdata = data.frame(WindAngle = a,
+                                       WindSpd = m,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)',
+                  type = 'response')
+  odba * d / mean_spd / spd
 }
 
 ## Barriers
@@ -42,27 +40,25 @@ test_barr <- SpatialPolygons(list(polys))
 
 ## Run test
 test_el <- energy_landscape(origin, radius, res, wind_u, wind_v,
-                            energy_mod, dur_mod, test_barr)
-print(plot_energy_landscape(test_el, origin, barriers = test_barr))
+                            energy_mod)
+print(plot_energy_landscape(test_el, origin))
 
 # Real data test
 ## Movement models
 load('data/out/Models/EnergyModels.Rdata')
 load('data/out/Models/SgTCModel.RData')
-energy_mod <- function(a, m) {
-  predict(oam, 
-          newdata = data.frame(WindAngle = a,
-                               WindSpd = m,
-                               DeployID = 1145),
-          exclude = 's(DeployID)',
-          type = 'response')
-}
-dur_mod <- function(a, m, d) {
-  t <- a * cos(a)
+energy_mod <- function(a, m, d) {
+  mean_spd <- 11.7 # m/s
   spd <- predict(SgTCModel, 
                  re.form = NA,
-                 newdata = data.frame(Tailwind = t))
-  d / spd
+                 newdata = data.frame(Tailwind = m * cos(a)))
+  odba <- predict(oam, 
+                  newdata = data.frame(WindAngle = a,
+                                       WindSpd = m,
+                                       DeployID = 1145),
+                  exclude = 's(DeployID)',
+                  type = 'response')
+  odba * d / (mean_spd / spd) 
 }
 
 wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
