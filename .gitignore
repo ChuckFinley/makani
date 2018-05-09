@@ -5,3 +5,5 @@ src/*_cache/*
 data/*
 
 *.history
+
+.RData
