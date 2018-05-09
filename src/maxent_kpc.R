@@ -118,7 +118,7 @@ extract_el <- function(x, y, t, col) {
   wgs84_prj <- CRS('+proj=longlat +datum=WGS84')
   hi_aea_prj <- CRS('+proj=aea +lat_1=8 +lat_2=18 +lat_0=13 +lon_0=-163 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
   extract_el2 <- function(x, y, t, col) {
-    sprintf('data/out/EnergyLandscapes/all/%s_%s_rt.tif',
+    sprintf('data/out/EnergyLandscapesFR/all/%s_%s_rt.tif',
                  first(col),
                  format(first(t), '%Y%m%d')) %>%
       raster(crs = hi_aea_prj) %>%

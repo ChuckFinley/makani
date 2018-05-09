@@ -63,7 +63,7 @@ orig_fit <- data.frame(Model = factor(1:4,
                                                  'D2C',
                                                  'UD',
                                                  'EL')),
-                       AUC = c(.699, .776, .765, .776))
+                       AUC = c(.699, .776, .765, .772))
 
 model_assessment %>%
   mutate(Model = factor(Model, 
