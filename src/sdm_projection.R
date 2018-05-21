@@ -65,29 +65,34 @@ system('java -cp tools/maxent/maxent.jar density.Project analysis/maxent/KPC/ert
 system('java -cp tools/maxent/maxent.jar density.Project analysis/maxent/KPC/d2c/RFBO.lambdas data/SDM_env/kpc_20160601 analysis/maxent/KPC/projections/KPC_d2c.asc')
 
 predict_envonly <- raster('analysis/maxent/KPC/projections/KPC_envonly.asc',
-                          crs = wgs84_prj) %>%
+                          crs = wgs84_prj)
+extent(predict_envonly)[1:2] <- extent(predict_envonly)[1:2] - 360
+predict_envonly <- predict_envonly %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
   data.frame
 colnames(predict_envonly)[3] <- 'ROR'
-predict_envonly[, 'x'] <- predict_envonly[, 'x'] - 360
+
 predict_d2c <- raster('analysis/maxent/KPC/projections/KPC_d2c.asc',
-                      crs = wgs84_prj) %>%
+                      crs = wgs84_prj)
+extent(predict_d2c)[1:2] <- extent(predict_d2c)[1:2] - 360
+predict_d2c <- predict_d2c %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
   data.frame
 colnames(predict_d2c)[3] <- 'ROR'
-predict_d2c[, 'x'] <- predict_d2c[, 'x'] - 360
+
 predict_ert <- raster('analysis/maxent/KPC/projections/KPC_ert.asc',
-                      crs = wgs84_prj) %>%
+                      crs = wgs84_prj)
+extent(predict_ert)[1:2] <- extent(predict_ert)[1:2] - 360
+predict_ert <- predict_ert %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
   data.frame
 colnames(predict_ert)[3] <- 'ROR'
-predict_ert[, 'x'] <- predict_ert[, 'x'] - 360
 
 # Tracks
 tracks_df <- read_csv('data/KPC_tracks.csv') %>%
@@ -102,16 +107,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
-  geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
+  #geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
-
-ggsave('analysis/figures/KPC_envonly_20160601.png',
-       height = 4,
-       width = 5)
+ggsave('analysis/figures/KPC_envonly_20160601_notracks.png',
+       height = 3,
+       width = 3.75)
 
 ## D2C
 ggplot() +
@@ -121,15 +126,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
 ggsave('analysis/figures/KPC_d2c_20160601.png',
-       height = 4,
-       width = 5)
+       height = 3,
+       width = 3.75)
 ## Ert
 ggplot() +
   geom_raster(aes(x, y, fill = ROR), predict_ert) +
@@ -138,15 +144,21 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
 ggsave('analysis/figures/KPC_ert_20160601.png',
-       height = 4,
-       width = 5)
+       height = 3,
+       width = 3.75)
+
+# correlation
+cor(predict_ert$ROR, predict_d2c$ROR)
+cor(predict_ert$ROR, predict_envonly$ROR)
+cor(predict_envonly$ROR, predict_d2c$ROR)
 
 # Around LEH for 2015-05-28
 start_time <- ymd_hm('20150528 00:00', tz = 'US/Hawaii')
@@ -228,16 +240,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
-
 ggsave('analysis/figures/LEH_envonly_20150528.png',
-       height = 4,
-       width = 5)
+       height = 3,
+       width = 3.75)
 
 ## D2C
 ggplot() +
@@ -247,15 +259,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
 ggsave('analysis/figures/LEH_d2c_20150528.png',
-       height = 4,
-       width = 5)
+       height = 3,
+       width = 3.75)
 ## Ert
 ggplot() +
   geom_raster(aes(x, y, fill = ROR), predict_ert) +
@@ -264,15 +277,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0, 1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
 ggsave('analysis/figures/LEH_ert_20150528.png',
-       height = 4,
-       width = 5)
+       height = 3,
+       width = 3.75)
 
 # Around MCB for 2014-06-05
 start_time <- ymd_hm('20140605 00:00', tz = 'US/Hawaii')
@@ -354,16 +368,17 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0,1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
 
-ggsave('analysis/figures/MCB_envonly_2014060.png',
-       height = 4,
-       width = 5)
+ggsave('analysis/figures/MCB_envonly_20140605.png',
+       height = 3,
+       width = 3.75)
 
 ## D2C
 ggplot() +
@@ -373,15 +388,16 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0,1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
-ggsave('analysis/figures/MCB_d2c_2014060.png',
-       height = 4,
-       width = 5)
+ggsave('analysis/figures/MCB_d2c_20140605.png',
+       height = 3,
+       width = 3.75)
 ## Ert
 ggplot() +
   geom_raster(aes(x, y, fill = ROR), predict_ert) +
@@ -390,13 +406,14 @@ ggplot() +
                color = '#BBBBBB') +
   scale_fill_gradient(low = '#fee0d2',
                       high = '#de2d26',
-                      name = 'ROR') +
+                      name = 'ROR',
+                      lim = c(0,1)) +
   geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
        y = '')
-ggsave('analysis/figures/MCB_ert_2014060.png',
-       height = 4,
-       width = 5)
+ggsave('analysis/figures/MCB_ert_20140605.png',
+       height = 3,
+       width = 3.75)
 
