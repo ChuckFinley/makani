@@ -120,15 +120,15 @@ foreach(col_name = list('KPC', 'LEH', 'MCB'),
       file_name <- function(loc, d, dir) {
         paste(loc, format(d, '%Y%m%d'), dir, sep = '_')
       }
-      raster_path1 <- file.path('data/out/EnergyLandscapesFR/',
+      raster_path1 <- file.path('data/out/EnergyLandscapesResid/',
                                 sprintf('%s/Rasters/%s/',
                                         col_name, dir_name),
                                 sprintf('%s.tif', 
                                         file_name(col_name, d, dir)))
-      raster_path2 <- file.path('data/out/EnergyLandscapesFR/all',
+      raster_path2 <- file.path('data/out/EnergyLandscapesResid/all',
                                 sprintf('%s.tif', 
                                         file_name(col_name, d, dir)))
-      figure_path <- file.path('data/out/EnergyLandscapesFR/',
+      figure_path <- file.path('data/out/EnergyLandscapesResid/',
                                sprintf('%s/Figures/%s/',
                                        col_name, dir_name),
                                sprintf('%s.png', 

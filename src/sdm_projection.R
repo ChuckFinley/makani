@@ -66,32 +66,32 @@ system('java -cp tools/maxent/maxent.jar density.Project analysis/maxent/KPC/d2c
 
 predict_envonly <- raster('analysis/maxent/KPC/projections/KPC_envonly.asc',
                           crs = wgs84_prj)
-extent(predict_envonly)[1:2] <- extent(predict_envonly)[1:2] - 360
 predict_envonly <- predict_envonly %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
-  data.frame
+  data.frame %>%
+  mutate(x = x - 360)
 colnames(predict_envonly)[3] <- 'ROR'
 
 predict_d2c <- raster('analysis/maxent/KPC/projections/KPC_d2c.asc',
                       crs = wgs84_prj)
-extent(predict_d2c)[1:2] <- extent(predict_d2c)[1:2] - 360
 predict_d2c <- predict_d2c %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
-  data.frame
+  data.frame %>%
+  mutate(x = x - 360)
 colnames(predict_d2c)[3] <- 'ROR'
 
 predict_ert <- raster('analysis/maxent/KPC/projections/KPC_ert.asc',
                       crs = wgs84_prj)
-extent(predict_ert)[1:2] <- extent(predict_ert)[1:2] - 360
 predict_ert <- predict_ert %>%
   resample(ert_r) %>%
   mask(ert_r) %>%
   rasterToPoints %>%
-  data.frame
+  data.frame %>%
+  mutate(x = x - 360)
 colnames(predict_ert)[3] <- 'ROR'
 
 # Tracks
@@ -114,7 +114,7 @@ ggplot() +
   theme_bw() +
   labs(x = '',
        y = '')
-ggsave('analysis/figures/KPC_envonly_20160601_notracks.png',
+ggsave('analysis/figures/KPC_envonly_20160601.png',
        height = 3,
        width = 3.75)
 
@@ -128,7 +128,7 @@ ggplot() +
                       high = '#de2d26',
                       name = 'ROR',
                       lim = c(0, 1)) +
-  geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
+  #geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
@@ -146,7 +146,7 @@ ggplot() +
                       high = '#de2d26',
                       name = 'ROR',
                       lim = c(0, 1)) +
-  geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
+  #geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',
@@ -242,7 +242,7 @@ ggplot() +
                       high = '#de2d26',
                       name = 'ROR',
                       lim = c(0, 1)) +
-  geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
+  #geom_path(aes(Longitude, Latitude), tracks_df, alpha = 0.5) +
   coord_fixed() +
   theme_bw() +
   labs(x = '',

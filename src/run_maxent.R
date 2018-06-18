@@ -49,7 +49,7 @@ depsess_list <- list(list(loc = 'LEH',
                           year_sess = '2015_2'))
 
 model_assessment <- foreach(depsess = depsess_list, .combine = rbind) %do% {
-  foreach(model = c('envonly', 'd2c', 'crw', 'ert'), .combine = rbind) %do% {
+  foreach(model = c('envonly', 'd2c', 'ert'), .combine = rbind) %do% {
     project_model(model, depsess$loc, depsess$year_sess)
     data.frame(Location = depsess$loc,
                DepSess = depsess$year_sess,
@@ -58,30 +58,43 @@ model_assessment <- foreach(depsess = depsess_list, .combine = rbind) %do% {
   }
 }
 
-orig_fit <- data.frame(Model = factor(1:4,
+orig_fit <- data.frame(Model = factor(c('envonly', 'd2c', 'ert'),
+                                      levels = c('envonly', 'd2c', 'ert'),
                                       labels = c('Suit.',
                                                  'D2C',
-                                                 'UD',
-                                                 'EL')),
-                       AUC = c(.699, .776, .765, .772))
+                                                 'ERT')),
+                       AUC = c(.699, .776, .772))
 
-model_assessment %>%
+plot_data <- model_assessment %>%
   mutate(Model = factor(Model, 
-                        levels = c('envonly', 'd2c', 'crw', 'ert'),
+                        levels = c('envonly', 'd2c', 'ert'),
                         labels = c('Suit.',
                                    'D2C',
-                                   'UD',
-                                   'EL'))) %>%
-  ggplot(aes(x = Model, y = AUC)) +
-  geom_boxplot() +
+                                   'ERT'))) %>% 
+  tidyr::separate(DepSess, c('Year', 'Session'))
+
+ggplot(plot_data, aes(x = Model, y = AUC)) +
+  geom_jitter(aes(color = Year),
+              size = 2,
+              height = 0,
+              width = 0.2) +
   geom_crossbar(aes(ymin = AUC, ymax = AUC),
                 data = orig_fit,
                 fatten = 0.5,
-                linetype = 'dotted') +
+                linetype = '28') +
+  geom_crossbar(aes(x = Model, y = mean_AUC, ymin = mean_AUC, ymax = mean_AUC),
+                plot_data %>%
+                  group_by(Model, Location) %>%
+                  summarize(mean_AUC = mean(AUC)) %>%
+                  ungroup,
+                inherit.aes = FALSE,
+                fatten = 0.5) +
   theme_bw() +
+  theme(legend.position = 'none') +
+  scale_x_discrete(labels = expression('Suit. Only', italic(D2C), italic(E[RT]))) +
+  scale_color_manual(values = c('red', 'blue')) +
   facet_wrap(~ Location)
-
 ggsave('analysis/figures/transferability.png',
-       height = 3,
+       height = 4,
        width = 4.5,
        units = 'in')

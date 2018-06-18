@@ -177,14 +177,16 @@ interp_grid <- function(grid, origin, radius, res, barriers) {
   rasters
 }
 
-# Rescale rasters to [0, 1] where 1 is most accessible
-rescale <- function(rasters) {
-  lapply(rasters,
-         function(r) {
-           r_min = cellStats(r, "min")
-           r_max = cellStats(r, "max")
-           1 - (r - r_min) / (r_max - r_min)
-         })
+# Calculate residual of energy landscape ~ distance to colony
+d2c_resid <- function(el, origin) {
+  lapply(el, function(el) {
+    d2c <- distanceFromPoints(el, cbind(origin[1], origin[2])) %>%
+      mask(el)
+    el_d2c_lm <- lm(getValues(el) ~ getValues(d2c), na.action = na.exclude)
+    result <- el
+    result[] <- resid(el_d2c_lm) / predict(el_d2c_lm)
+    result
+  })
 }
 
 # Estimate energy landscape
@@ -195,7 +197,7 @@ energy_landscape <- function(origin, radius, res, u, v,
   wind_conns <- annotate_wind(connections, u, v, energy_mod, barriers)
   grid_costs <- trip_costs(grid_coords, wind_conns, origin)
   el_raster <- interp_grid(grid_costs, origin, radius, res, barriers)
-  norm_raster <- rescale(el_raster)
+  el_resid <- d2c_resid(el_raster, origin)
 }
 
 plot_energy_landscape <- function(energy_landscape, origin, 

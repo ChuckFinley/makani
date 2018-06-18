@@ -7,7 +7,6 @@ hi_land <- rgdal::readOGR('data/coastline/hi_land', 'hi_land') %>%
 
 load('data/out/TransitSegments/SegSample.RData')
 
-tripid <- 
 tripid <- 115300027
 tracks <- read_csv('data/KPC_tracks.csv') %>% 
   filter(TripID == tripid)
@@ -127,7 +126,7 @@ ggsave('analysis/figures/Flapper.png',
        width = 6,
        units = 'in')
 
-acc_data_out <- get.acc(6132) %>%
+acc_data_out <- get.acc(6122) %>%
   group_by(BurstID) %>%
   mutate(Time = as.numeric(ACCTimestampUTC - min(ACCTimestampUTC), unit = 'secs')) %>%
   ungroup
@@ -138,15 +137,17 @@ acc_data_in %>%
           mutate(Leg = 'Out',
                  x = row_number())) %>%
   mutate(Leg = factor(Leg, levels = c('Out', 'In'))) %>%
-  filter(x < 1000) %>%
-  ggplot(aes(x, DynZ, color = Leg)) +
+  filter(between(x, 500, 900)) %>%
+  ggplot(aes(x, DynY, color = Leg)) +
   geom_line() +
   facet_wrap(~ Leg) +
   scale_color_manual(values = c('orange', 'green')) +
   theme_bw() +
-  theme(legend.position = 'none') +
+  theme(legend.position = 'none',
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
   labs(x = '',
-       y = 'Z-axis Acceleration (m/s^2)')
+       y = 'Y-axis Acceleration (m/s^2)')
 ggsave('analysis/figures/ACCtwosegs.png',
        height = 4,
        width = 6,
